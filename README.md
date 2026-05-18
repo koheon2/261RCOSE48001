@@ -321,7 +321,7 @@ cp backend/.env.example backend/.env
 `backend/.env` 예시:
 
 ```env
-DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/researcherhub
+DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/researcherhub_codex
 OPENALEX_EMAIL=your@email.com
 CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
 OPENAI_API_KEY=your-openai-api-key
