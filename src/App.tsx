@@ -7,6 +7,7 @@ import { TrendingPage }   from "./pages/TrendingPage";
 import { ResearcherDNA }  from "./pages/ResearcherDNA";
 import { ProgressPage }   from "./pages/ProgressPage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
+import { PaperTimelinePage } from "./pages/PaperTimelinePage";
 import { TopBar }          from "./components/TopBar";
 import type { Researcher } from "./data/researchers";
 
@@ -61,6 +62,10 @@ export default function App() {
           <Route
             path="/leaderboard"
             element={<LeaderboardPage />}
+          />
+          <Route
+            path="/timeline"
+            element={<PaperTimelinePage />}
           />
         </Routes>
       </div>

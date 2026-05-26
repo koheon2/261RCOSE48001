@@ -181,7 +181,9 @@ def build_paper_facets(
     subfield: str | None,
     topic: str | None,
 ) -> dict[str, list[dict]]:
-    combined_text = " ".join(part for part in [title or "", abstract or ""] if part).strip()
+    combined_text = " ".join(
+        part for part in [title or "", abstract or "", subfield or "", topic or ""] if part
+    ).strip()
     facets: dict[str, list[dict]] = {facet_type: [] for facet_type in FACET_TYPES}
     seen: dict[str, set[str]] = {facet_type: set() for facet_type in FACET_TYPES}
 

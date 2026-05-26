@@ -30,6 +30,16 @@ JITTER_M = 10
 # 알려진 기관 좌표 (Wikidata/Wikipedia 확인값) — name-match fallback
 KNOWN_COORDS = {
     "Seoul National University":                  (37.4603, 126.9521),
+    "Korea Advanced Institute of Science and Technology": (36.3724, 127.3608),  # KAIST main campus, Daejeon
+    "KAIST":                                       (36.3724, 127.3608),
+    "Pohang University of Science and Technology": (36.0143, 129.3225),  # POSTECH
+    "POSTECH":                                     (36.0143, 129.3225),
+    "Ulsan National Institute of Science and Technology": (35.5658, 129.2569),  # UNIST
+    "UNIST":                                       (35.5658, 129.2569),
+    "Daegu Gyeongbuk Institute of Science and Technology": (35.7100, 128.4577),  # DGIST
+    "DGIST":                                       (35.7100, 128.4577),
+    "Gwangju Institute of Science and Technology": (35.2293, 126.8410),  # GIST
+    "GIST":                                        (35.2293, 126.8410),
     "Samsung (South Korea)":                      (37.5145, 127.0631),  # Samsung Digital City, Suwon
     "Seoul National University of Science and Technology": (37.6490, 127.0776),
     "Sejong University":                          (37.5507, 127.0716),

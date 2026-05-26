@@ -37,12 +37,15 @@ def get_fast_status() -> dict:
     return dict(_fast_status)
 
 
-async def fast_fill_missing_locations(limit: int = 50_000) -> None:
+async def fast_fill_missing_locations(limit: int = 50_000, include_missing_coords: bool = True) -> None:
     """
-    country + institution 둘 다 null인 연구자를 인용수 상위부터 OpenAlex 개별 조회.
+    위치 정보가 부족한 연구자를 인용수 상위부터 OpenAlex 개별 조회.
+    - include_missing_coords=True (기본): country/institution null 이거나 lat null 인 모두 대상
+    - include_missing_coords=False: country/institution 둘 다 null 인 경우만 (기존 동작)
     /authors/{id} 를 concurrency=30으로 병렬 처리 → last_known_institutions[0] 사용.
     50명 단위로 DB 커밋 + 기관 좌표 배치 조회.
     """
+    from sqlalchemy import or_, and_
     import random
 
     global _fast_status
@@ -61,15 +64,18 @@ async def fast_fill_missing_locations(limit: int = 50_000) -> None:
 
     try:
         async with AsyncSessionLocal() as db:
-            rows = (
-                await db.execute(
-                    select(Researcher.id)
-                    .where(Researcher.country.is_(None))
-                    .where(Researcher.institution.is_(None))
-                    .order_by(Researcher.citations.desc())
-                    .limit(limit)
+            base_q = select(Researcher.id).order_by(Researcher.citations.desc()).limit(limit)
+            if include_missing_coords:
+                # lat이 null이면 보정 대상 (country/institution이 채워져 있어도 좌표 없는 케이스 포함)
+                base_q = base_q.where(
+                    or_(
+                        Researcher.lat.is_(None),
+                        and_(Researcher.country.is_(None), Researcher.institution.is_(None)),
+                    )
                 )
-            ).all()
+            else:
+                base_q = base_q.where(Researcher.country.is_(None)).where(Researcher.institution.is_(None))
+            rows = (await db.execute(base_q)).all()
 
         all_ids = [r.id for r in rows]
         _fast_status["total"] = len(all_ids)

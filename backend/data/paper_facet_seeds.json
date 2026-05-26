@@ -52,7 +52,7 @@
     },
     {
       "value": "Diffusion",
-      "aliases": ["diffusion model", "diffusion models", "denoising diffusion", "score based generative model", "score-based generative model", "latent diffusion"]
+      "aliases": ["diffusion model", "diffusion models", "denoising diffusion", "stable diffusion", "score based generative model", "score-based generative model", "latent diffusion"]
     },
     {
       "value": "Retrieval-Augmented Generation",
@@ -123,6 +123,10 @@
     {
       "value": "Text Generation",
       "aliases": ["text generation", "natural language generation", "language generation"]
+    },
+    {
+      "value": "Video Generation",
+      "aliases": ["video generation", "video synthesis", "text to video", "text-to-video", "image to video", "image-to-video", "t2v", "i2v", "generative video", "video diffusion"]
     },
     {
       "value": "Information Retrieval",
@@ -200,7 +204,7 @@
     },
     {
       "value": "Video Understanding",
-      "aliases": ["video understanding", "video analysis", "video generation", "action recognition"]
+      "aliases": ["video understanding", "video analysis", "action recognition"]
     },
     {
       "value": "Scientific Discovery",

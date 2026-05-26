@@ -42,6 +42,11 @@ class Paper(Base):
         "PaperQualityFlag", back_populates="paper", cascade="all, delete-orphan"
     )
 
+    __table_args__ = (
+        Index("ix_papers_topic_year_citations", "topic", "year", "citations"),
+        Index("ix_papers_year_citations", "year", "citations"),
+    )
+
 
 class PaperAuthor(Base):
     __tablename__ = "paper_authors"
@@ -58,6 +63,10 @@ class PaperAuthor(Base):
     country = Column(String(5))
 
     paper = relationship("Paper", back_populates="authors")
+
+    __table_args__ = (
+        Index("ix_pa_paper_position", "paper_id", "position"),
+    )
 
 
 class PaperAuthorAffiliation(Base):
@@ -184,6 +193,7 @@ class PaperQualityFlag(Base):
         Index("ix_pqf_severity", "severity"),
         Index("ix_pqf_flag_type", "flag_type"),
         Index("ix_pqf_paper_id", "paper_id"),
+        Index("ix_pqf_paper_severity", "paper_id", "severity"),
     )
 
 

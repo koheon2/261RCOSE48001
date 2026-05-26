@@ -385,12 +385,18 @@ async def fast_location_status():
 async def start_fast_fill(
     background_tasks: BackgroundTasks,
     limit: int = Query(50000, description="처리할 최대 연구자 수 (인용수 상위부터)"),
+    include_missing_coords: bool = Query(
+        True,
+        description="True: country/institution이 있지만 lat이 null인 경우도 포함 (기본). False: 기존 동작 (country+institution 둘 다 null만).",
+    ),
 ):
     """
-    country+institution이 null인 연구자를 OpenAlex 배치 조회로 빠르게 보정.
+    위치 정보가 부족한 연구자를 OpenAlex 배치 조회로 빠르게 보정.
     50명씩 배치, last_known_institutions[0] 사용.
     """
     if location_update.get_fast_status()["running"]:
         raise HTTPException(status_code=409, detail="Fast fill already running")
-    background_tasks.add_task(location_update.fast_fill_missing_locations, limit)
-    return {"message": f"Fast fill started (limit={limit:,})"}
+    background_tasks.add_task(
+        location_update.fast_fill_missing_locations, limit, include_missing_coords
+    )
+    return {"message": f"Fast fill started (limit={limit:,}, include_missing_coords={include_missing_coords})"}
