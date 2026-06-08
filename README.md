@@ -314,9 +314,21 @@ GET /api/papers/representative?limit=20
 GET /api/papers/{paper_id}
 GET /api/papers/{paper_id}/references?limit=20
 GET /api/papers/{paper_id}/citation-graph?depth=1&limit=100
+GET /api/papers/graphs/topic-lineage?topic=diffusion&axis=method
 ```
 
 프론트에서는 `/papers/:id`에서 상세 정보와 referenced papers를 확인할 수 있습니다.
+
+Citation graph 화면:
+
+```text
+/papers/{paper_id}/graph
+/lineage?topic=diffusion&axis=method
+```
+
+`/papers/{paper_id}/graph`는 single-paper lineage graph입니다. seed paper의 earlier references, 2-hop prerequisites, related works를 연도축에 배치합니다.
+
+`/lineage?topic=...`는 topic/facet multi-seed lineage MVP입니다. enriched paper subset에서 topic seed papers를 뽑고, 여러 seed가 공유하는 ancestor/foundation papers를 `multi_seed_v0` 점수로 정렬해 보여줍니다. 아직 cache/job layer가 없으므로 topic에 따라 응답이 몇 초 걸릴 수 있습니다.
 
 ## Full DB Dump로 시작하기
 
@@ -551,6 +563,7 @@ GET /api/search/universal?q=Transformer%20vs%20Diffusion
 GET /api/papers/representative?limit=20
 GET /api/papers/W4312933868/references?limit=20
 GET /api/institutions/profile?name=KAIST&years=10
+GET /api/papers/graphs/topic-lineage?topic=diffusion&axis=method
 ```
 
 ## Git에 포함하지 않는 것
@@ -587,15 +600,17 @@ GET /api/institutions/profile?name=KAIST&years=10
 - ROR 기반 기관 정규화는 local snapshot exact/fuzzy v0이며, ambiguous/unmatched 상위 기관은 별도 alias curation이 필요합니다.
 - benchmark score, dataset, metric extraction은 아직 구현하지 않았습니다.
 - citation enrichment는 현재 대표 3만 개 subset MVP입니다. 전체 DB citation graph가 아닙니다.
+- topic lineage graph는 cache 없이 요청 시점에 계산하는 MVP입니다.
 - 대용량 전체 DB를 그대로 배포하는 구조는 비용 효율적이지 않습니다. 배포용으로는 summary table 중심의 slim DB가 필요합니다.
 
 ## 다음 단계
 
 1. 배포용 slim DB 생성
-2. citation graph API/프론트 시각화 고도화
-3. 학교/기관별 facet-level 강점 분석과 author-institution summary 추가
-4. frontend API base URL 환경변수화
-5. Postgres FTS/trgm 기반 검색 개선
-6. institution alias curation / ROR API fallback
-7. facet taxonomy v1
-8. result/benchmark extraction
+2. topic lineage graph cache/job layer 추가
+3. citation graph API/프론트 시각화 고도화
+4. 학교/기관별 facet-level 강점 분석과 author-institution summary 추가
+5. frontend API base URL 환경변수화
+6. Postgres FTS/trgm 기반 검색 개선
+7. institution alias curation / ROR API fallback
+8. facet taxonomy v1
+9. result/benchmark extraction

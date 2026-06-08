@@ -10,6 +10,7 @@ import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { PaperTimelinePage } from "./pages/PaperTimelinePage";
 import { PaperDetailPage } from "./pages/PaperDetailPage";
 import { PaperGraphPage } from "./pages/PaperGraphPage";
+import { TopicLineagePage } from "./pages/TopicLineagePage";
 import { InstitutionProfilePage } from "./pages/InstitutionProfilePage";
 import { TopBar }          from "./components/TopBar";
 import type { Researcher } from "./data/researchers";
@@ -69,6 +70,10 @@ export default function App() {
           <Route
             path="/timeline"
             element={<PaperTimelinePage />}
+          />
+          <Route
+            path="/lineage"
+            element={<TopicLineagePage />}
           />
           <Route
             path="/papers/:id"

@@ -1078,3 +1078,297 @@ async def get_paper_citation_graph(
         "related_count": len(related_rows),
         **QUALITY_PROVENANCE,
     }
+
+
+@router.get("/graphs/topic-lineage")
+async def get_topic_lineage_graph(
+    topic: str = Query(..., min_length=1),
+    axis: str | None = Query(None, pattern=AXIS_PATTERN),
+    seed_limit: int = Query(24, ge=4, le=60),
+    ancestor_limit: int = Query(70, ge=10, le=160),
+    year_from: int = Query(2017, ge=1900, le=2100),
+    db: AsyncSession = Depends(get_db),
+):
+    """Build a multi-seed citation lineage graph for a facet/topic from enriched papers."""
+    canonical_topic, matched_axes = canonicalize_facet_query(topic)
+    axes = _axis_filter(axis) if axis else (matched_axes or list(FACET_TYPES))
+
+    seed_rows = (
+        await db.execute(
+            text("""
+            SELECT
+                p.id,
+                p.title,
+                p.year,
+                p.citations,
+                p.fwci,
+                p.type,
+                p.subfield,
+                p.topic,
+                pes.candidate_score
+            FROM paper_enrichment_status pes
+            JOIN papers p ON p.id = pes.paper_id
+            WHERE pes.source = 'openalex'
+              AND pes.status = 'fetched'
+              AND p.year IS NOT NULL
+              AND p.year >= :year_from
+              AND lower(COALESCE(p.type, '')) IN (
+                  'article',
+                  'preprint',
+                  'proceedings-article',
+                  'review'
+              )
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM paper_quality_flags pqf
+                  WHERE pqf.paper_id = p.id
+                  AND pqf.severity = 'exclude'
+              )
+              AND EXISTS (
+                  SELECT 1
+                  FROM paper_facets pf
+                  WHERE pf.paper_id = p.id
+                    AND pf.facet_value = :topic
+                    AND pf.facet_type = ANY(:axes)
+              )
+            ORDER BY pes.candidate_score DESC NULLS LAST, p.citations DESC NULLS LAST, p.year DESC NULLS LAST, p.id
+            LIMIT :seed_limit
+            """),
+            {
+                "topic": canonical_topic,
+                "axes": axes,
+                "year_from": year_from,
+                "seed_limit": seed_limit,
+            },
+        )
+    ).fetchall()
+
+    if not seed_rows:
+        return {
+            "topic": canonical_topic,
+            "query": topic,
+            "matched_axes": axes,
+            "seed_count": 0,
+            "nodes": [],
+            "edges": [],
+            "scoring": "multi_seed_v0",
+            **QUALITY_PROVENANCE,
+        }
+
+    seed_ids = [row.id for row in seed_rows]
+
+    ancestor_rows = (
+        await db.execute(
+            text("""
+            WITH seed_ids AS (
+                SELECT unnest(CAST(:seed_ids AS text[])) AS paper_id
+            ),
+            direct_edges AS (
+                SELECT
+                    pre.source_paper_id AS seed_id,
+                    pre.target_paper_id AS ancestor_id
+                FROM paper_reference_edges pre
+                JOIN seed_ids s ON s.paper_id = pre.source_paper_id
+                JOIN papers seed_p ON seed_p.id = pre.source_paper_id
+                JOIN papers target_p ON target_p.id = pre.target_paper_id
+                WHERE pre.source = 'openalex'
+                  AND pre.target_paper_id IS NOT NULL
+                  AND pre.target_paper_id <> ALL(CAST(:seed_ids AS text[]))
+                  AND (
+                      target_p.year IS NULL
+                      OR seed_p.year IS NULL
+                      OR target_p.year <= seed_p.year
+                  )
+            ),
+            direct_nodes AS (
+                SELECT
+                    d.ancestor_id AS paper_id,
+                    COUNT(DISTINCT d.seed_id)::bigint AS seed_reach,
+                    COUNT(*)::bigint AS edge_count,
+                    'ancestor'::text AS role,
+                    1 AS lineage_depth
+                FROM direct_edges d
+                GROUP BY d.ancestor_id
+            ),
+            second_edges AS (
+                SELECT
+                    d.seed_id,
+                    d.ancestor_id AS child_id,
+                    pre.target_paper_id AS paper_id
+                FROM direct_edges d
+                JOIN paper_reference_edges pre
+                  ON pre.source_paper_id = d.ancestor_id
+                 AND pre.source = 'openalex'
+                 AND pre.target_paper_id IS NOT NULL
+                JOIN papers child_p ON child_p.id = d.ancestor_id
+                JOIN papers target_p ON target_p.id = pre.target_paper_id
+                WHERE pre.target_paper_id <> ALL(CAST(:seed_ids AS text[]))
+                  AND pre.target_paper_id <> d.ancestor_id
+                  AND (
+                      target_p.year IS NULL
+                      OR child_p.year IS NULL
+                      OR target_p.year <= child_p.year
+                  )
+            ),
+            foundation_nodes AS (
+                SELECT
+                    s.paper_id,
+                    COUNT(DISTINCT s.seed_id)::bigint AS seed_reach,
+                    COUNT(DISTINCT s.child_id)::bigint AS edge_count,
+                    'foundation'::text AS role,
+                    2 AS lineage_depth
+                FROM second_edges s
+                GROUP BY s.paper_id
+            ),
+            candidates AS (
+                SELECT * FROM direct_nodes
+                UNION ALL
+                SELECT * FROM foundation_nodes
+            ),
+            scored AS (
+                SELECT
+                    c.paper_id,
+                    p.title,
+                    p.year,
+                    p.citations,
+                    p.fwci,
+                    p.type,
+                    p.subfield,
+                    p.topic,
+                    c.role,
+                    c.lineage_depth,
+                    c.seed_reach,
+                    c.edge_count,
+                    (
+                        c.seed_reach * 100
+                        + c.edge_count * CASE WHEN c.lineage_depth = 1 THEN 12 ELSE 18 END
+                        + LN(GREATEST(COALESCE(p.citations, 0), 0) + 1) * 8
+                        - CASE
+                            WHEN lower(COALESCE(p.type, '')) IN ('book', 'book-chapter') THEN 40
+                            ELSE 0
+                          END
+                    )::float AS lineage_score
+                FROM candidates c
+                JOIN papers p ON p.id = c.paper_id
+                WHERE lower(COALESCE(p.type, '')) IN (
+                    'article',
+                    'preprint',
+                    'proceedings-article',
+                    'review'
+                )
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM paper_quality_flags pqf
+                      WHERE pqf.paper_id = p.id
+                        AND pqf.severity = 'exclude'
+                  )
+            ),
+            deduped AS (
+                SELECT DISTINCT ON (paper_id)
+                    *
+                FROM scored
+                ORDER BY paper_id, seed_reach DESC, lineage_score DESC
+            )
+            SELECT *
+            FROM deduped
+            ORDER BY lineage_score DESC, seed_reach DESC, citations DESC NULLS LAST
+            LIMIT :ancestor_limit
+            """),
+            {"seed_ids": seed_ids, "ancestor_limit": ancestor_limit},
+        )
+    ).fetchall()
+
+    ancestor_ids = [row.paper_id for row in ancestor_rows]
+    included_ids = [*seed_ids, *ancestor_ids]
+
+    edge_rows = []
+    if ancestor_ids:
+        edge_rows = (
+            await db.execute(
+                text("""
+                WITH included AS (
+                    SELECT unnest(CAST(:included_ids AS text[])) AS paper_id
+                )
+                SELECT DISTINCT
+                    pre.target_paper_id AS source,
+                    pre.source_paper_id AS target,
+                    'reference'::text AS type
+                FROM paper_reference_edges pre
+                JOIN included src ON src.paper_id = pre.source_paper_id
+                JOIN included tgt ON tgt.paper_id = pre.target_paper_id
+                WHERE pre.source = 'openalex'
+                  AND pre.target_paper_id IS NOT NULL
+                  AND pre.source_paper_id <> pre.target_paper_id
+                LIMIT 500
+                """),
+                {"included_ids": included_ids},
+            )
+        ).fetchall()
+
+    node_map: dict[str, dict] = {}
+    for row in seed_rows:
+        node_map[row.id] = {
+            "id": row.id,
+            "title": row.title,
+            "year": row.year,
+            "citations": int(row.citations or 0),
+            "fwci": float(row.fwci) if row.fwci is not None else None,
+            "type": row.type,
+            "subfield": row.subfield,
+            "topic": row.topic,
+            "role": "seed",
+            "lineage_depth": 0,
+            "seed_reach": 1,
+            "edge_count": 0,
+            "lineage_score": float(row.candidate_score or row.citations or 0),
+        }
+
+    for row in ancestor_rows:
+        node_map[row.paper_id] = {
+            "id": row.paper_id,
+            "title": row.title,
+            "year": row.year,
+            "citations": int(row.citations or 0),
+            "fwci": float(row.fwci) if row.fwci is not None else None,
+            "type": row.type,
+            "subfield": row.subfield,
+            "topic": row.topic,
+            "role": row.role,
+            "lineage_depth": int(row.lineage_depth or 0),
+            "seed_reach": int(row.seed_reach or 0),
+            "edge_count": int(row.edge_count or 0),
+            "lineage_score": float(row.lineage_score or 0),
+        }
+
+    edges = [
+        {
+            "source": row.source,
+            "target": row.target,
+            "type": row.type,
+        }
+        for row in edge_rows
+        if row.source in node_map and row.target in node_map
+    ]
+
+    nodes = list(node_map.values())
+    nodes.sort(
+        key=lambda n: (
+            n.get("year") if n.get("year") is not None else 9999,
+            n.get("lineage_depth", 0),
+            -int(n.get("lineage_score") or 0),
+            n["id"],
+        )
+    )
+
+    return {
+        "topic": canonical_topic,
+        "query": topic,
+        "matched_axes": axes,
+        "seed_count": len(seed_rows),
+        "ancestor_count": len(ancestor_rows),
+        "nodes": nodes,
+        "edges": edges,
+        "scoring": "multi_seed_v0",
+        "year_from": year_from,
+        **QUALITY_PROVENANCE,
+    }

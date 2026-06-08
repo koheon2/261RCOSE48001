@@ -398,6 +398,20 @@ export function PaperTimelinePage() {
             <span style={{ fontFamily: MONO_FONT, fontSize: 13, color: "#94a3b8" }}>
               {data?.topic || selectedTopic}
             </span>
+            <Link
+              to={`/lineage?topic=${encodeURIComponent(selectedTopic)}${selectedAxis ? `&axis=${encodeURIComponent(selectedAxis)}` : ""}`}
+              style={{
+                color: "#34d399",
+                border: "1px solid #1e293b",
+                padding: "6px 10px",
+                fontFamily: PIXEL_FONT,
+                fontSize: 7,
+                textDecoration: "none",
+                letterSpacing: "0.08em",
+              }}
+            >
+              TOPIC LINEAGE
+            </Link>
           </div>
         )}
 
