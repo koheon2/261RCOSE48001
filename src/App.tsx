@@ -9,6 +9,8 @@ import { ProgressPage }   from "./pages/ProgressPage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { PaperTimelinePage } from "./pages/PaperTimelinePage";
 import { PaperDetailPage } from "./pages/PaperDetailPage";
+import { PaperGraphPage } from "./pages/PaperGraphPage";
+import { InstitutionProfilePage } from "./pages/InstitutionProfilePage";
 import { TopBar }          from "./components/TopBar";
 import type { Researcher } from "./data/researchers";
 
@@ -71,6 +73,14 @@ export default function App() {
           <Route
             path="/papers/:id"
             element={<PaperDetailPage />}
+          />
+          <Route
+            path="/papers/:id/graph"
+            element={<PaperGraphPage />}
+          />
+          <Route
+            path="/institutions/:name"
+            element={<InstitutionProfilePage />}
           />
         </Routes>
       </div>

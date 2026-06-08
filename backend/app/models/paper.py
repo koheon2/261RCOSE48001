@@ -326,6 +326,28 @@ class PublicationInstitutionFieldStat(Base):
     )
 
 
+class PublicationInstitutionFieldYearStat(Base):
+    __tablename__ = "publication_institution_field_year_stats"
+
+    institution_name = Column(String(300), primary_key=True)
+    subfield = Column(String(100), primary_key=True)
+    year = Column(SmallInteger, primary_key=True)
+    institution_ror_id = Column(String(100))
+    institution_match_confidence = Column(Float)
+    institution_normalized = Column(Boolean, nullable=False, default=False)
+    contributions = Column(BigInteger, nullable=False, default=0)
+    papers = Column(BigInteger, nullable=False, default=0)
+    total_citations = Column(BigInteger, nullable=False, default=0)
+    avg_paper_citations = Column(Float, nullable=False, default=0)
+    refreshed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_pifys_institution_year", "institution_name", "year"),
+        Index("ix_pifys_subfield_year_contributions", "subfield", "year", "contributions"),
+        Index("ix_pifys_institution_subfield_year", "institution_name", "subfield", "year"),
+    )
+
+
 class PublicationAuthorCountryYearStat(Base):
     __tablename__ = "publication_author_country_year_stats"
 

@@ -48,7 +48,7 @@ export function TopBar({ onSelect, visibleCount }: Props) {
     { label: "MAP",        path: "/map" },
     { label: "TRENDING",   path: "/trending" },
     { label: "LEADERBOARD", path: "/leaderboard" },
-    { label: "TIMELINE",   path: "/timeline" },
+    { label: "PAPERS",     path: "/timeline" },
   ] as const;
 
   const search = useCallback(async (q: string) => {

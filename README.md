@@ -21,6 +21,7 @@ ResearcherHub는 AI/CS 연구 논문과 연구자 정보를 기반으로 국가,
 - paper facet 기반 trending
 - 대표 논문 리스트와 paper detail 화면
 - OpenAlex reference/related works 기반 citation enrichment MVP
+- 학교/기관별 강한 분야, 연도별 field trend, 핵심 연구자, 대표 논문 프로필
 - Transformer, Diffusion, RAG, LLM 등 세부 AI method facet 비교
 - VQA, reasoning, retrieval, code generation 등 task facet
 - medical imaging, robotics, autonomous driving 등 application facet
@@ -104,6 +105,7 @@ ResearcherHub는 AI/CS 연구 논문과 연구자 정보를 기반으로 국가,
 | `publication_country_year_stats` | 국가별 publication-year trend 요약 |
 | `publication_institution_stats` | 기관별 publication-time 요약 |
 | `publication_institution_field_stats` | 기관별/세부 분야별 publication-time 요약 |
+| `publication_institution_field_year_stats` | 기관별/세부 분야별 publication-year trend 요약 |
 | `paper_facet_summary` | facet별 전체 count/citation/growth 요약 |
 | `paper_facet_year_summary` | facet별 연도별 trend 요약 |
 | `publication_author_country_year_stats` | 국가/연도/저자별 publication-time author leaderboard 요약 |
@@ -205,6 +207,8 @@ cd backend
 
 기관 리더보드에 field 필터가 붙는 경우에는 대용량 `paper_author_affiliations` join을 매 요청마다 실행하지 않고 `publication_institution_field_stats` summary table을 사용합니다. 이 summary는 canonical institution, ROR metadata, conservative quality filter를 반영합니다.
 
+학교/기관 상세 프로필은 `publication_institution_field_stats`와 `publication_institution_field_year_stats`를 함께 사용합니다. 이를 통해 특정 학교가 어떤 분야에서 강한지, 최근 10년 동안 분야별 contribution이 어떻게 변했는지 빠르게 보여줍니다.
+
 운영 순서:
 
 ```bash
@@ -214,11 +218,20 @@ cd backend
 .venv/bin/python -m scripts.validate_institution_matches
 ```
 
+새 institution field-year summary만 갱신하려면:
+
+```bash
+cd backend
+.venv/bin/python -m scripts.refresh_publication_summaries --only publication_institution_field_year_stats
+```
+
 확인할 주요 API:
 
 ```text
 GET /api/leaderboard?type=institution&field=AI&limit=20
 GET /api/leaderboard?type=institution&field=Computer%20Vision&limit=20
+GET /api/institutions/profile?name=KAIST&years=10
+GET /api/institutions/profile?name=MIT&years=10
 ```
 
 ## Citation Enrichment MVP
@@ -537,6 +550,7 @@ GET /api/leaderboard?type=institution&field=AI&limit=20
 GET /api/search/universal?q=Transformer%20vs%20Diffusion
 GET /api/papers/representative?limit=20
 GET /api/papers/W4312933868/references?limit=20
+GET /api/institutions/profile?name=KAIST&years=10
 ```
 
 ## Git에 포함하지 않는 것
@@ -579,8 +593,9 @@ GET /api/papers/W4312933868/references?limit=20
 
 1. 배포용 slim DB 생성
 2. citation graph API/프론트 시각화 고도화
-3. frontend API base URL 환경변수화
-4. Postgres FTS/trgm 기반 검색 개선
-5. institution alias curation / ROR API fallback
-6. facet taxonomy v1
-7. result/benchmark extraction
+3. 학교/기관별 facet-level 강점 분석과 author-institution summary 추가
+4. frontend API base URL 환경변수화
+5. Postgres FTS/trgm 기반 검색 개선
+6. institution alias curation / ROR API fallback
+7. facet taxonomy v1
+8. result/benchmark extraction

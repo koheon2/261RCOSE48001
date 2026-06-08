@@ -4,7 +4,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.database import engine, Base
-from app.api.routes import researchers, benchmarks, map, search, compare, trending, leaderboard, progress, papers
+from app.api.routes import (
+    researchers,
+    benchmarks,
+    map,
+    search,
+    compare,
+    trending,
+    leaderboard,
+    progress,
+    papers,
+    institutions,
+)
 from app.models.collaboration import Collaboration
 from app.models.paper import (  # noqa: F401 - ensure tables are registered
     InstitutionNameMatch,
@@ -18,6 +29,7 @@ from app.models.paper import (  # noqa: F401 - ensure tables are registered
     PaperReferenceEdge,
     PaperRelatedEdge,
     PublicationInstitutionFieldStat,
+    PublicationInstitutionFieldYearStat,
 )
 from app.services.scheduler import setup_scheduler, shutdown_scheduler
 
@@ -52,6 +64,7 @@ app.include_router(trending.router, prefix="/api")
 app.include_router(leaderboard.router, prefix="/api")
 app.include_router(progress.router, prefix="/api")
 app.include_router(papers.router, prefix="/api")
+app.include_router(institutions.router, prefix="/api")
 
 
 @app.get("/health")

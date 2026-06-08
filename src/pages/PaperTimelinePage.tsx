@@ -172,15 +172,14 @@ export function PaperTimelinePage() {
   }, [perYear, minFwci]);
 
   const fetchRepresentative = useCallback(async (topic: string, axis: string) => {
-    if (!topic) return;
     setRepresentativeLoading(true);
     try {
       const params = new URLSearchParams({
-        topic,
         limit: "16",
         sort: "impact",
         year_from: "2017",
       });
+      if (topic) params.set("topic", topic);
       if (axis) params.set("axis", axis);
       const res = await fetch(`${API_BASE}/papers/representative?${params}`);
       if (!res.ok) throw new Error(`Representative papers failed: ${res.status}`);
@@ -198,6 +197,9 @@ export function PaperTimelinePage() {
     if (selectedTopic) {
       fetchTimeline(selectedTopic, selectedAxis);
       fetchRepresentative(selectedTopic, selectedAxis);
+    } else {
+      setData(null);
+      fetchRepresentative("", "");
     }
   }, [selectedTopic, selectedAxis, fetchTimeline, fetchRepresentative]);
 
@@ -213,9 +215,9 @@ export function PaperTimelinePage() {
     setSelectedAxis("");
     setTopicQuery("");
     setData(null);
-    setRepresentative(null);
     setSearchParams({});
     fetchTopics("");
+    fetchRepresentative("", "");
   };
 
   return (
@@ -232,13 +234,13 @@ export function PaperTimelinePage() {
           letterSpacing: "0.06em", marginBottom: 6,
           textShadow: "2px 2px 0 #00d4ff55",
         }}>
-          MAJOR PAPER <span style={{ color: "#00d4ff" }}>TIMELINE</span>
+          PAPERS <span style={{ color: "#00d4ff" }}>EXPLORER</span>
         </div>
         <div style={{
           fontFamily: MONO_FONT, fontSize: 12, color: "#475569",
           marginBottom: 28, letterSpacing: "0.04em",
         }}>
-          Per-topic chronology of high-impact papers.
+          Representative papers, topic timelines, and citation-backed paper details.
         </div>
 
         {/* Controls */}
@@ -408,14 +410,14 @@ export function PaperTimelinePage() {
           </div>
         )}
 
-        {!loading && selectedTopic && (
+        {!loading && (
           <section style={{ marginBottom: 28 }}>
             <div style={{
               display: "flex", alignItems: "baseline", justifyContent: "space-between",
               gap: 16, marginBottom: 10,
             }}>
               <div style={{ fontFamily: PIXEL_FONT, fontSize: 8, color: "#64748b", letterSpacing: "0.08em" }}>
-                REPRESENTATIVE PAPERS
+                {selectedTopic ? "REPRESENTATIVE PAPERS" : "GLOBAL REPRESENTATIVE PAPERS"}
               </div>
               {representative && (
                 <div style={{ fontFamily: MONO_FONT, fontSize: 11, color: "#475569" }}>

@@ -851,10 +851,12 @@ async def get_paper_references(
 @router.get("/{paper_id}/citation-graph")
 async def get_paper_citation_graph(
     paper_id: str,
-    limit: int = Query(30, ge=1, le=100),
+    limit: int = Query(40, ge=1, le=120),
+    depth: int = Query(2, ge=1, le=2),
+    related: int = Query(12, ge=0, le=40),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return a lightweight one-hop local reference graph for a paper."""
+    """Return a lightweight citation lineage graph for a paper."""
     detail = await db.execute(
         text("""
         SELECT id, title, year, citations, fwci, doi, open_access, type, subfield, topic, NULL::text AS abstract
@@ -867,6 +869,7 @@ async def get_paper_citation_graph(
     if not seed:
         raise HTTPException(status_code=404, detail="Paper not found")
 
+    per_level = max(8, min(limit, 60))
     ref_rows = (
         await db.execute(
             text("""
@@ -895,40 +898,183 @@ async def get_paper_citation_graph(
             ORDER BY p.citations DESC NULLS LAST, p.year DESC NULLS LAST, p.id
             LIMIT :limit
             """),
-            {"paper_id": paper_id, "limit": limit},
+            {"paper_id": paper_id, "limit": per_level},
         )
     ).fetchall()
 
-    nodes = [
-        {
+    reference_ids = [row.id for row in ref_rows if row.id]
+    prerequisite_rows = []
+    if depth >= 2 and reference_ids:
+        prerequisite_rows = (
+            await db.execute(
+                text("""
+                WITH second_hop AS (
+                    SELECT
+                        pre.source_paper_id,
+                        pre.target_paper_id,
+                        p.id,
+                        p.title,
+                        p.year,
+                        p.citations,
+                        p.fwci,
+                        p.doi,
+                        p.open_access,
+                        p.type,
+                        p.subfield,
+                        p.topic,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY pre.source_paper_id
+                            ORDER BY p.citations DESC NULLS LAST, p.year DESC NULLS LAST, p.id
+                        ) AS rn
+                    FROM paper_reference_edges pre
+                    JOIN papers source_p ON source_p.id = pre.source_paper_id
+                    JOIN papers p ON p.id = pre.target_paper_id
+                    WHERE pre.source_paper_id = ANY(:reference_ids)
+                      AND pre.source = 'openalex'
+                      AND pre.target_paper_id IS NOT NULL
+                      AND pre.target_paper_id <> :paper_id
+                      AND (
+                          p.year IS NULL
+                          OR source_p.year IS NULL
+                          OR p.year <= source_p.year
+                      )
+                )
+                SELECT
+                    source_paper_id,
+                    id,
+                    title,
+                    year,
+                    citations,
+                    fwci,
+                    doi,
+                    open_access,
+                    type,
+                    subfield,
+                    topic
+                FROM second_hop
+                WHERE rn <= 3
+                ORDER BY citations DESC NULLS LAST, year DESC NULLS LAST, id
+                LIMIT :limit
+                """),
+                {"paper_id": paper_id, "reference_ids": reference_ids, "limit": limit},
+            )
+        ).fetchall()
+
+    related_rows = []
+    if related:
+        related_rows = (
+            await db.execute(
+                text("""
+                SELECT
+                    rel.rank,
+                    p.id,
+                    p.title,
+                    p.year,
+                    p.citations,
+                    p.fwci,
+                    p.doi,
+                    p.open_access,
+                    p.type,
+                    p.subfield,
+                    p.topic
+                FROM paper_related_edges rel
+                JOIN papers p ON p.id = rel.target_paper_id
+                WHERE rel.source_paper_id = :paper_id
+                  AND rel.source = 'openalex'
+                  AND rel.target_paper_id IS NOT NULL
+                ORDER BY rel.rank ASC, p.citations DESC NULLS LAST
+                LIMIT :limit
+                """),
+                {"paper_id": paper_id, "limit": related},
+            )
+        ).fetchall()
+
+    node_map: dict[str, dict] = {
+        seed.id: {
             "id": seed.id,
             "title": seed.title,
             "year": seed.year,
             "citations": int(seed.citations or 0),
+            "fwci": float(seed.fwci) if seed.fwci is not None else None,
+            "type": seed.type,
+            "subfield": seed.subfield,
+            "topic": seed.topic,
             "role": "seed",
         }
-    ]
-    nodes.extend(
-        {
+    }
+
+    def upsert_node(row, role: str, level: int) -> None:
+        if not row.id:
+            return
+        existing = node_map.get(row.id)
+        if existing:
+            priority = {"seed": 0, "reference": 1, "prerequisite": 2, "related": 3}
+            if priority.get(role, 9) < priority.get(existing.get("role", ""), 9):
+                existing["role"] = role
+                existing["level"] = level
+            return
+        node_map[row.id] = {
             "id": row.id,
             "title": row.title,
             "year": row.year,
             "citations": int(row.citations or 0),
-            "role": "reference",
+            "fwci": float(row.fwci) if row.fwci is not None else None,
+            "type": row.type,
+            "subfield": row.subfield,
+            "topic": row.topic,
+            "role": role,
+            "level": level,
         }
-        for row in ref_rows
-    )
-    edges = [
-        {
-            "source": paper_id,
-            "target": row.id,
-            "type": "references",
+
+    for row in ref_rows:
+        upsert_node(row, "reference", 1)
+    for row in prerequisite_rows:
+        upsert_node(row, "prerequisite", 2)
+    for row in related_rows:
+        upsert_node(row, "related", 1)
+
+    edge_map: dict[tuple[str, str, str], dict] = {}
+
+    def add_edge(source: str, target: str, edge_type: str) -> None:
+        if source not in node_map or target not in node_map:
+            return
+        edge_map[(source, target, edge_type)] = {
+            "source": source,
+            "target": target,
+            "type": edge_type,
         }
-        for row in ref_rows
+
+    # Direction is intellectual flow: earlier paper -> later paper.
+    for row in ref_rows:
+        if row.id:
+            add_edge(row.id, paper_id, "reference")
+    for row in prerequisite_rows:
+        if row.id and row.source_paper_id:
+            add_edge(row.id, row.source_paper_id, "reference")
+    for row in related_rows:
+        if row.id:
+            add_edge(paper_id, row.id, "related")
+
+    nodes = [
+        node
+        for node in node_map.values()
     ]
+    nodes.sort(
+        key=lambda n: (
+            n.get("year") if n.get("year") is not None else 9999,
+            -int(n.get("citations") or 0),
+            n["id"],
+        )
+    )
+    edges = list(edge_map.values())
+
     return {
         "paper_id": paper_id,
         "nodes": nodes,
         "edges": edges,
+        "depth": depth,
+        "reference_count": len(ref_rows),
+        "prerequisite_count": len(prerequisite_rows),
+        "related_count": len(related_rows),
         **QUALITY_PROVENANCE,
     }

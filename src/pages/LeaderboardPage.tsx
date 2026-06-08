@@ -120,6 +120,8 @@ export function LeaderboardPage() {
   const handleRowClick = (entry: LeaderboardEntry) => {
     if (type === "researcher" || type === "author") {
       navigate(`/researcher/${entry.key}`);
+    } else if (type === "institution") {
+      navigate(`/institutions/${encodeURIComponent(entry.name || entry.key)}`);
     } else if (type === "country") {
       // Compare top 2 countries (this + next)
       const idx = entries.findIndex(e => e.key === entry.key);

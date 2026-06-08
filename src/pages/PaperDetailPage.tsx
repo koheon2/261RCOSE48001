@@ -238,6 +238,19 @@ export function PaperDetailPage() {
                     OpenAlex
                   </a>
                 )}
+                <Link
+                  to={`/papers/${encodeURIComponent(paper.id)}/graph`}
+                  style={{
+                    color: "#34d399",
+                    border: "1px solid #1e293b",
+                    padding: "6px 9px",
+                    fontFamily: MONO_FONT,
+                    fontSize: 12,
+                    textDecoration: "none",
+                  }}
+                >
+                  Citation Graph
+                </Link>
               </div>
             </div>
 
