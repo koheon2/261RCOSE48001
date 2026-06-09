@@ -313,7 +313,7 @@ Paper detail API:
 GET /api/papers/representative?limit=20
 GET /api/papers/{paper_id}
 GET /api/papers/{paper_id}/references?limit=20
-GET /api/papers/{paper_id}/citation-graph?depth=1&limit=100
+GET /api/papers/{paper_id}/citation-graph?depth=2&limit=42&related=14
 GET /api/papers/graphs/topic-lineage?topic=diffusion&axis=method
 ```
 
@@ -329,6 +329,33 @@ Citation graph 화면:
 `/papers/{paper_id}/graph`는 single-paper lineage graph입니다. seed paper의 earlier references, 2-hop prerequisites, related works를 연도축에 배치합니다.
 
 `/lineage?topic=...`는 topic/facet multi-seed lineage MVP입니다. enriched paper subset에서 topic seed papers를 뽑고, 여러 seed가 공유하는 ancestor/foundation papers를 `multi_seed_v0` 점수로 정렬해 보여줍니다. 아직 cache/job layer가 없으므로 topic에 따라 응답이 몇 초 걸릴 수 있습니다.
+
+Single-paper graph 구성:
+
+| role | 의미 |
+| --- | --- |
+| `seed` | 현재 보고 있는 논문 |
+| `reference` | seed paper가 직접 인용한 1-hop earlier works |
+| `prerequisite` | 1-hop reference들이 다시 인용한 2-hop 기반 논문 |
+| `related` | OpenAlex `related_works` 기반 유사/연관 논문 |
+
+Topic lineage graph 구성:
+
+| role | 의미 |
+| --- | --- |
+| `seed` | topic/facet에 매칭되고 OpenAlex reference enrichment가 끝난 대표 논문 |
+| `ancestor` | 여러 seed가 직접 인용한 공통 조상 논문 |
+| `foundation` | ancestor들이 다시 인용한 더 오래된 기반 논문 |
+
+`multi_seed_v0` score는 다음 신호를 조합합니다.
+
+- `seed_reach`: 몇 개 seed paper에서 도달되는가
+- `edge_count`: seed/ancestor 경로에서 얼마나 자주 등장하는가
+- `citations`: 해당 paper의 citation impact
+- `lineage_depth`: direct ancestor와 foundation의 역할 차이
+- `type penalty`: book/book-chapter류는 기본적으로 제외하거나 감점
+
+서비스 운영 관점에서는 single-paper graph는 요청 시 계산해도 괜찮지만, topic lineage는 추후 `graph cache/job layer`가 필요합니다.
 
 ## Full DB Dump로 시작하기
 
@@ -562,8 +589,20 @@ GET /api/leaderboard?type=institution&field=AI&limit=20
 GET /api/search/universal?q=Transformer%20vs%20Diffusion
 GET /api/papers/representative?limit=20
 GET /api/papers/W4312933868/references?limit=20
+GET /api/papers/W4312933868/citation-graph?depth=2&limit=42&related=14
 GET /api/institutions/profile?name=KAIST&years=10
 GET /api/papers/graphs/topic-lineage?topic=diffusion&axis=method
+```
+
+주요 프론트 URL:
+
+```text
+/timeline
+/papers/W4312933868
+/papers/W4312933868/graph
+/lineage?topic=diffusion&axis=method
+/institutions/KAIST
+/leaderboard?type=institution&field=AI
 ```
 
 ## Git에 포함하지 않는 것
