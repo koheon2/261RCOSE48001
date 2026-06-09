@@ -325,12 +325,14 @@ export function PaperTimelinePage() {
                 {topicSuggestions.map((t) => (
                   <div
                     key={`${t.facet_type}:${t.topic}`}
+                    onClick={() => handlePickTopic(t)}
                     style={{
                       textAlign: "left",
                       background: "#06080f",
                       border: "1px solid #1e293b",
                       padding: "12px 14px",
                       color: "#e2e8f0",
+                      cursor: "pointer",
                       transition: "border-color 0.12s, background 0.12s",
                     }}
                     onMouseEnter={(e) => {
@@ -360,12 +362,16 @@ export function PaperTimelinePage() {
                     </div>
                     <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                       <button
-                        onClick={() => handlePickTopic(t)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePickTopic(t);
+                        }}
                         style={smallActionStyle}
                       >
                         TIMELINE
                       </button>
                       <Link
+                        onClick={(e) => e.stopPropagation()}
                         to={`/lineage?topic=${encodeURIComponent(t.topic)}&axis=${encodeURIComponent(t.facet_type)}`}
                         style={{
                           ...smallActionStyle,
