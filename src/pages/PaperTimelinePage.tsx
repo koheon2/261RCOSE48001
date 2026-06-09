@@ -323,16 +323,14 @@ export function PaperTimelinePage() {
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 8 }}>
                 {topicSuggestions.map((t) => (
-                  <button
+                  <div
                     key={`${t.facet_type}:${t.topic}`}
-                    onClick={() => handlePickTopic(t)}
                     style={{
                       textAlign: "left",
                       background: "#06080f",
                       border: "1px solid #1e293b",
                       padding: "12px 14px",
                       color: "#e2e8f0",
-                      cursor: "pointer",
                       transition: "border-color 0.12s, background 0.12s",
                     }}
                     onMouseEnter={(e) => {
@@ -360,7 +358,27 @@ export function PaperTimelinePage() {
                         {t.min_year && t.max_year && ` · ${t.min_year}-${t.max_year}`}
                       </span>
                     </div>
-                  </button>
+                    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                      <button
+                        onClick={() => handlePickTopic(t)}
+                        style={smallActionStyle}
+                      >
+                        TIMELINE
+                      </button>
+                      <Link
+                        to={`/lineage?topic=${encodeURIComponent(t.topic)}&axis=${encodeURIComponent(t.facet_type)}`}
+                        style={{
+                          ...smallActionStyle,
+                          color: "#34d399",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          textDecoration: "none",
+                        }}
+                      >
+                        LINEAGE
+                      </Link>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -616,3 +634,14 @@ export function PaperTimelinePage() {
     </div>
   );
 }
+
+const smallActionStyle: React.CSSProperties = {
+  background: "transparent",
+  border: "1px solid #1e293b",
+  color: "#00d4ff",
+  padding: "5px 8px",
+  fontFamily: "'Press Start 2P', monospace",
+  fontSize: 6,
+  cursor: "pointer",
+  letterSpacing: "0.06em",
+};

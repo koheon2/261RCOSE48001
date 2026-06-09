@@ -49,6 +49,7 @@ export function TopBar({ onSelect, visibleCount }: Props) {
     { label: "TRENDING",   path: "/trending" },
     { label: "LEADERBOARD", path: "/leaderboard" },
     { label: "PAPERS",     path: "/timeline" },
+    { label: "LINEAGE",    path: "/lineage?topic=diffusion&axis=method" },
   ] as const;
 
   const search = useCallback(async (q: string) => {
