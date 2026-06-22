@@ -76,10 +76,10 @@ function makeArcPositions(
 
 // ── buildPoints ───────────────────────────────────────────────────────────────
 // Size budget (px, before NearFarScalar):
-//   normal  core≤7  mid≤14  outer≤28
-//   selected core≤15 mid≤30  outer≤60
-// NearFarScalar: ×1.2 at 30km alt, ×0.35 at 20M alt
-//   → at closest zoom: outer_normal=34px, outer_selected=72px  ✓
+//   normal  core≤8  mid≤17  outer≤32
+//   selected core≤17 mid≤36  outer≤68
+// NearFarScalar: ×1.25 at 30km alt, ×0.45 at 20M alt.
+// A thin dark backing point makes clusters legible on bright basemap tiles.
 function buildPoints(
   viewer: Cesium.Viewer,
   researchers: Researcher[],
@@ -110,7 +110,7 @@ function buildPoints(
   let pointIdx = 0;
 
   // Scale: conservative near-far so close zoom doesn't balloon
-  const scale = new Cesium.NearFarScalar(3e4, 1.2, 2e7, 0.35);
+  const scale = new Cesium.NearFarScalar(3e4, 1.25, 2e7, 0.45);
 
   filtered.forEach((r) => {
     if (r.lat == null || r.lng == null) return;
@@ -129,13 +129,13 @@ function buildPoints(
       100,
     );
 
-    // Core size: normal 2–7px, selected 5–15px
-    const coreSize = isSel ? 5 + n * 10 : 2 + n * 5;
+    // Core size: normal 3–8px, selected 6–17px
+    const coreSize = isSel ? 6 + n * 11 : 3 + n * 5;
     const midSize  = coreSize * 2.2;
     const outerSize = coreSize * 4.5;
 
-    const outerAlpha = isSel ? 0.18 : (0.015 + n * 0.10) * dimFactor;
-    const midAlpha   = isSel ? 0.50 : (0.05  + n * 0.22) * dimFactor;
+    const outerAlpha = isSel ? 0.20 : (0.02 + n * 0.12) * dimFactor;
+    const midAlpha   = isSel ? 0.58 : (0.08 + n * 0.28) * dimFactor;
 
     // Outer halo
     col.add({
@@ -153,16 +153,24 @@ function buildPoints(
       scaleByDistance: scale,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
     });
+    // Dark backing ring for sharper contrast over pale map tiles.
+    col.add({
+      position: pos,
+      color: Cesium.Color.fromCssColorString("#0f172a").withAlpha(isSel ? 0.90 : 0.55 * dimFactor),
+      pixelSize: coreSize + (isSel ? 5 : 3),
+      scaleByDistance: scale,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    });
     // Core
     col.add({
       position: pos,
       color: isSel
         ? Cesium.Color.WHITE
         : new Cesium.Color(
-            color.red   * 0.4 + 0.6,
-            color.green * 0.4 + 0.6,
-            color.blue  * 0.4 + 0.6,
-            (0.35 + n * 0.60) * dimFactor,
+            color.red   * 0.2 + 0.8,
+            color.green * 0.2 + 0.8,
+            color.blue  * 0.2 + 0.8,
+            (0.72 + n * 0.28) * dimFactor,
           ),
       pixelSize: coreSize,
       scaleByDistance: scale,
@@ -171,7 +179,7 @@ function buildPoints(
 
     if (n > 0.25 && (!hasSelection || isSel || isRelated)) {
       pulseMeta.push({
-        idx: pointIdx * 3,
+        idx: pointIdx * 4,
         baseAlpha: (0.015 + n * 0.10) * dimFactor,
         phase: ((r.lat ?? 0) * 73 + (r.lng ?? 0) * 37) % (Math.PI * 2),
         cr: color.red,

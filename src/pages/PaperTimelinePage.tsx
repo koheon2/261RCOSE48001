@@ -100,11 +100,12 @@ export function PaperTimelinePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTopic = searchParams.get("topic") || "";
   const initialAxis = searchParams.get("axis") || "";
+  const initialSearch = searchParams.get("search") || searchParams.get("q") || "";
 
-  const [mode, setMode] = useState<"topic" | "paper">(initialTopic ? "topic" : "topic");
+  const [mode, setMode] = useState<"topic" | "paper">(initialSearch ? "paper" : "topic");
   const [topicQuery, setTopicQuery] = useState(initialTopic);
   const [topicSuggestions, setTopicSuggestions] = useState<TopicOption[]>([]);
-  const [paperQuery, setPaperQuery] = useState("");
+  const [paperQuery, setPaperQuery] = useState(initialSearch);
   const [paperResults, setPaperResults] = useState<Paper[]>([]);
   const [paperSearchLoading, setPaperSearchLoading] = useState(false);
   const [paperPage, setPaperPage] = useState(0);
@@ -197,6 +198,15 @@ export function PaperTimelinePage() {
   useEffect(() => {
     fetchTopics("");
   }, [fetchTopics]);
+
+  useEffect(() => {
+    const nextSearch = searchParams.get("search") || searchParams.get("q") || "";
+    if (!nextSearch) return;
+    setMode("paper");
+    setPaperQuery(nextSearch);
+    setPaperPage(0);
+    searchPapers(nextSearch, 0);
+  }, [searchParams, searchPapers]);
 
   useEffect(() => {
     return () => {

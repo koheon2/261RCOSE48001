@@ -1,30 +1,21 @@
-import { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { FIELD_COLORS, getFieldColor } from "../data/researchers";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { getFieldColor } from "../data/researchers";
 import type { Researcher } from "../data/researchers";
 
 const API_BASE = "http://localhost:8000/api";
-const PIXEL_FONT = "'Press Start 2P', monospace";
-const MONO_FONT  = "'Share Tech Mono', monospace";
+const UI_FONT = '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
 
-function fmtNum(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
-  return n.toString();
+function fmtNum(n: number | null | undefined): string {
+  const value = Number(n ?? 0);
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return Math.round(value).toLocaleString();
 }
 
-// Generate fake 5-year citation growth from current value
-function generateCitationTrend(currentCitations: number): { year: number; citations: number }[] {
-  const years: { year: number; citations: number }[] = [];
-  for (let i = 4; i >= 0; i--) {
-    const year = 2025 - i;
-    const factor = Math.pow((5 - i) / 5, 1.4) + Math.random() * 0.05;
-    years.push({
-      year,
-      citations: Math.round(currentCitations * factor),
-    });
-  }
-  return years;
+function percentileLike(value: number, max: number): number {
+  if (!value || !max) return 0;
+  return Math.max(4, Math.min(100, (Math.log1p(value) / Math.log1p(max)) * 100));
 }
 
 export function ResearcherDNA() {
@@ -37,345 +28,442 @@ export function ResearcherDNA() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-
     Promise.all([
       fetch(`${API_BASE}/researchers/${id}`).then(r => r.json()),
       fetch(`${API_BASE}/researchers/${id}/related`).then(r => r.json()),
     ])
       .then(([rData, relData]) => {
         setResearcher(rData);
-        setRelated(relData.slice(0, 5));
+        setRelated(Array.isArray(relData) ? relData.slice(0, 8) : []);
       })
-      .catch(e => console.error("Failed to load researcher:", e))
+      .catch(() => {
+        setResearcher(null);
+        setRelated([]);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
-  const citationTrend = useMemo(
-    () => researcher ? generateCitationTrend(researcher.citations) : [],
-    [researcher],
-  );
+  const topics = useMemo(() => {
+    const raw = (researcher as any)?.topics;
+    return Array.isArray(raw) ? raw.filter(Boolean).slice(0, 16) : [];
+  }, [researcher]);
 
   if (loading) {
     return (
-      <div style={{
-        position: "absolute", top: 52, left: 0, right: 0, bottom: 0,
-        background: "#06080f",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontFamily: MONO_FONT, fontSize: 14, color: "#94a3b8",
-      }}>
-        Loading researcher data...
-      </div>
+      <main style={pageStyle}>
+        <div style={stateCardStyle}>연구자 프로필을 불러오는 중입니다.</div>
+      </main>
     );
   }
 
   if (!researcher) {
     return (
-      <div style={{
-        position: "absolute", top: 52, left: 0, right: 0, bottom: 0,
-        background: "#06080f",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontFamily: MONO_FONT, fontSize: 14, color: "#94a3b8",
-      }}>
-        Researcher not found.
-      </div>
+      <main style={pageStyle}>
+        <div style={stateCardStyle}>
+          <strong>연구자를 찾을 수 없습니다.</strong>
+          <button onClick={() => navigate(-1)} style={secondaryButtonStyle}>돌아가기</button>
+        </div>
+      </main>
     );
   }
 
-  const color = getFieldColor(researcher.field);
-  const topics = (researcher as any).topics as string[] | null;
-  const topicCount = topics?.length ?? 0;
-
-  // SVG line chart for citation trend
-  const chartW = 320;
-  const chartH = 160;
-  const chartPad = { top: 20, right: 20, bottom: 30, left: 50 };
-  const innerW = chartW - chartPad.left - chartPad.right;
-  const innerH = chartH - chartPad.top - chartPad.bottom;
-  const maxCit = Math.max(...citationTrend.map(d => d.citations), 1);
-  const points = citationTrend.map((d, i) => {
-    const x = chartPad.left + (i / Math.max(citationTrend.length - 1, 1)) * innerW;
-    const y = chartPad.top + innerH - (d.citations / maxCit) * innerH;
-    return { x, y, ...d };
-  });
-  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  const fieldColor = getFieldColor(researcher.field);
+  const impactWidth = percentileLike(researcher.citations, 250_000);
+  const productivityWidth = percentileLike(researcher.works_count, 800);
+  const hIndexWidth = percentileLike(researcher.h_index, 250);
 
   return (
-    <div style={{
-      position: "absolute", top: 52, left: 0, right: 0, bottom: 0,
-      background: "#06080f",
-      overflowY: "auto",
-      padding: "32px 40px",
-    }}>
-      {/* Back button */}
-      <button
-        onClick={() => navigate(-1)}
-        style={{
-          background: "transparent", border: "1px solid #1e293b",
-          color: "#94a3b8", fontFamily: PIXEL_FONT, fontSize: 11,
-          padding: "6px 12px", cursor: "pointer", marginBottom: 24,
-          letterSpacing: "0.06em",
-        }}
-        onMouseEnter={e => { e.currentTarget.style.color = "#00d4ff"; e.currentTarget.style.borderColor = "#00d4ff44"; }}
-        onMouseLeave={e => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.borderColor = "#1e293b"; }}
-      >
-        &lt; BACK
-      </button>
+    <main style={pageStyle}>
+      <section style={shellStyle}>
+        <button onClick={() => navigate(-1)} style={backButtonStyle}>← Back</button>
 
-      {/* Header */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 12, marginBottom: 8,
-      }}>
-        <span style={{ fontSize: 24 }}>🧬</span>
-        <h1 style={{
-          fontFamily: PIXEL_FONT, fontSize: 14,
-          color: "#f8fafc", margin: 0,
-        }}>
-          RESEARCHER DNA
-        </h1>
-      </div>
-
-      {/* Main layout: 3 columns */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "280px 1fr 360px",
-        gap: 24,
-        marginTop: 24,
-      }}>
-        {/* LEFT: Basic info */}
-        <div style={{
-          background: "#0a0f1a",
-          border: `1px solid ${color}33`,
-          padding: 20,
-        }}>
-          {/* Field badge */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16 }}>
-            <div style={{ width: 8, height: 8, background: color, boxShadow: `0 0 8px ${color}` }} />
-            <span style={{ fontFamily: PIXEL_FONT, fontSize: 11, color, letterSpacing: "0.08em" }}>
-              {(researcher.field ?? "UNKNOWN").toUpperCase()}
-            </span>
+        <header style={heroStyle}>
+          <div style={avatarStyle}>
+            {researcher.name.split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase()}
           </div>
-
-          {/* Name */}
-          <h2 style={{
-            fontFamily: PIXEL_FONT, fontSize: 11, color: "#f1f5f9",
-            margin: "0 0 12px 0", lineHeight: 1.8,
-          }}>
-            {researcher.name.toUpperCase()}
-          </h2>
-
-          {/* Institution */}
-          <div style={{ fontFamily: MONO_FONT, fontSize: 13, color: "#94a3b8", marginBottom: 4 }}>
-            {researcher.institution ?? "---"}
-          </div>
-          <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#94a3b8", marginBottom: 20 }}>
-            {researcher.country ?? "---"}
-          </div>
-
-          {/* Stats */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {[
-              { label: "CITATIONS", value: fmtNum(researcher.citations), c: "#00d4ff" },
-              { label: "H-INDEX", value: String(researcher.h_index), c: "#a78bfa" },
-              { label: "PAPERS", value: String(researcher.works_count), c: "#34d399" },
-              { label: "2YR PAPERS", value: String(researcher.recent_papers), c: "#fbbf24" },
-            ].map(s => (
-              <div key={s.label} style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                padding: "8px 0",
-                borderBottom: "1px solid #0d1421",
-              }}>
-                <span style={{ fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8", letterSpacing: "0.06em" }}>
-                  {s.label}
-                </span>
-                <span style={{ fontFamily: MONO_FONT, fontSize: 16, color: s.c }}>
-                  {s.value}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Impact bar */}
-          <div style={{ marginTop: 16 }}>
-            <span style={{ fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8", letterSpacing: "0.06em" }}>
-              IMPACT
-            </span>
-            <div style={{ height: 4, background: "#0f172a", marginTop: 6 }}>
-              <div style={{
-                height: "100%",
-                width: `${Math.min(100, (researcher.h_index / 200) * 100)}%`,
-                background: `linear-gradient(90deg, ${color}66, ${color})`,
-                boxShadow: `0 0 8px ${color}44`,
-              }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={eyebrowStyle}>Researcher profile</div>
+            <h1 style={titleStyle}>{researcher.name}</h1>
+            <p style={subtitleStyle}>
+              {researcher.institution || "Institution unknown"}
+              {researcher.country ? ` · ${researcher.country}` : ""}
+            </p>
+            <div style={chipRowStyle}>
+              <span style={{ ...fieldChipStyle, borderColor: `${fieldColor}55`, color: fieldColor }}>
+                {researcher.field || "Unknown field"}
+              </span>
+              <span style={chipStyle}>OpenAlex ID {researcher.id}</span>
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* CENTER: DNA visualization - topic bars */}
-        <div style={{
-          background: "#0a0f1a",
-          border: "1px solid #1e293b",
-          padding: 20,
-        }}>
-          <div style={{
-            fontFamily: PIXEL_FONT, fontSize: 11, color: "#00d4ff",
-            marginBottom: 16, letterSpacing: "0.06em",
-          }}>
-            TOPIC DNA ({topicCount} TOPICS)
+        <section style={metricGridStyle}>
+          <Metric label="Citations" value={fmtNum(researcher.citations)} />
+          <Metric label="H-index" value={fmtNum(researcher.h_index)} />
+          <Metric label="Papers" value={fmtNum(researcher.works_count)} />
+          <Metric label="Recent papers" value={fmtNum(researcher.recent_papers)} />
+        </section>
+
+        <section style={mainGridStyle}>
+          <div style={panelStyle}>
+            <SectionHeader title="Impact Snapshot" caption="현재 researcher metadata 기준의 요약 지표입니다." />
+            <div style={barStackStyle}>
+              <ScoreBar label="Citation impact" value={impactWidth} color="#2563eb" />
+              <ScoreBar label="Research output" value={productivityWidth} color="#0f766e" />
+              <ScoreBar label="H-index strength" value={hIndexWidth} color="#7c3aed" />
+            </div>
           </div>
 
-          {topics && topics.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {topics.slice(0, 20).map((topicId, i) => {
-                const name = topicId;
-                const barPct = ((topics.length - i) / topics.length) * 100;
-                const barColor = Object.values(FIELD_COLORS)[i % Object.values(FIELD_COLORS).length];
+          <div style={panelStyle}>
+            <SectionHeader title="Topic Signals" caption="연구자 record에 연결된 topic 힌트입니다." />
+            {topics.length > 0 ? (
+              <div style={topicGridStyle}>
+                {topics.map((topic, index) => (
+                  <span key={`${topic}-${index}`} style={topicChipStyle}>{topic}</span>
+                ))}
+              </div>
+            ) : (
+              <EmptyText text="이 연구자에 대한 topic metadata가 아직 충분하지 않습니다." />
+            )}
+          </div>
+        </section>
+
+        <section style={panelStyle}>
+          <SectionHeader title="Related Researchers" caption="기존 related researcher API 기반 연결 후보입니다." />
+          {related.length > 0 ? (
+            <div style={relatedGridStyle}>
+              {related.map(r => {
+                const color = getFieldColor(r.field);
                 return (
-                  <div key={topicId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{
-                      fontFamily: MONO_FONT, fontSize: 11, color: "#94a3b8",
-                      minWidth: 180, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                    }}>
-                      {name}
-                    </span>
-                    <div style={{
-                      flex: 1, height: 12, background: "#0f172a",
-                      position: "relative", overflow: "hidden",
-                    }}>
-                      <div style={{
-                        position: "absolute", left: 0, top: 0, bottom: 0,
-                        width: `${barPct}%`,
-                        background: `linear-gradient(90deg, ${barColor}44, ${barColor})`,
-                        transition: "width 0.3s ease",
-                      }} />
-                    </div>
-                    <span style={{
-                      fontFamily: MONO_FONT, fontSize: 10, color: "#94a3b8",
-                      minWidth: 35, textAlign: "right",
-                    }}>
-                      {barPct.toFixed(0)}%
-                    </span>
-                  </div>
+                  <Link key={r.id} to={`/researcher/${r.id}`} style={relatedCardStyle}>
+                    <span style={{ ...dotStyle, background: color }} />
+                    <strong style={relatedNameStyle}>{r.name}</strong>
+                    <span style={relatedMetaStyle}>{r.institution || "Unknown institution"}</span>
+                    <span style={relatedStatsStyle}>{fmtNum(r.citations)} citations · h {fmtNum(r.h_index)}</span>
+                  </Link>
                 );
               })}
             </div>
           ) : (
-            <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#94a3b8", padding: "20px 0" }}>
-              No topic data available for this researcher.
-            </div>
+            <EmptyText text="연결 연구자 후보가 없습니다." />
           )}
-        </div>
+        </section>
+      </section>
+    </main>
+  );
+}
 
-        {/* RIGHT: Citation trend chart + Similar researchers */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {/* Citation trend */}
-          <div style={{
-            background: "#0a0f1a",
-            border: "1px solid #1e293b",
-            padding: 20,
-          }}>
-            <div style={{
-              fontFamily: PIXEL_FONT, fontSize: 11, color: "#a78bfa",
-              marginBottom: 12, letterSpacing: "0.06em",
-            }}>
-              CITATION GROWTH (5YR)
-            </div>
-            <svg width={chartW} height={chartH} style={{ display: "block" }}>
-              {/* Grid lines */}
-              {[0, 0.25, 0.5, 0.75, 1].map(frac => {
-                const y = chartPad.top + innerH * (1 - frac);
-                return (
-                  <g key={frac}>
-                    <line x1={chartPad.left} y1={y} x2={chartPad.left + innerW} y2={y}
-                      stroke="#1e293b" strokeWidth={0.5} />
-                    <text x={chartPad.left - 6} y={y + 3} textAnchor="end"
-                      fill="#94a3b8" fontFamily={MONO_FONT} fontSize={9}>
-                      {fmtNum(Math.round(maxCit * frac))}
-                    </text>
-                  </g>
-                );
-              })}
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={metricCardStyle}>
+      <span style={metricLabelStyle}>{label}</span>
+      <strong style={metricValueStyle}>{value}</strong>
+    </div>
+  );
+}
 
-              {/* Line */}
-              <path d={linePath} fill="none" stroke="#a78bfa" strokeWidth={2} />
+function SectionHeader({ title, caption }: { title: string; caption: string }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <h2 style={sectionTitleStyle}>{title}</h2>
+      <p style={sectionCaptionStyle}>{caption}</p>
+    </div>
+  );
+}
 
-              {/* Glow line */}
-              <path d={linePath} fill="none" stroke="#a78bfa" strokeWidth={4} opacity={0.2} />
-
-              {/* Dots + labels */}
-              {points.map((p, i) => (
-                <g key={i}>
-                  <circle cx={p.x} cy={p.y} r={3} fill="#a78bfa" />
-                  <circle cx={p.x} cy={p.y} r={6} fill="#a78bfa" opacity={0.15} />
-                  <text x={p.x} y={chartH - 6} textAnchor="middle"
-                    fill="#94a3b8" fontFamily={MONO_FONT} fontSize={9}>
-                    {p.year}
-                  </text>
-                </g>
-              ))}
-
-              {/* Area fill */}
-              <path
-                d={`${linePath} L${points[points.length - 1]?.x ?? 0},${chartPad.top + innerH} L${points[0]?.x ?? 0},${chartPad.top + innerH} Z`}
-                fill="#a78bfa" opacity={0.06}
-              />
-            </svg>
-          </div>
-
-          {/* Similar researchers */}
-          <div style={{
-            background: "#0a0f1a",
-            border: "1px solid #1e293b",
-            padding: 20,
-            flex: 1,
-          }}>
-            <div style={{
-              fontFamily: PIXEL_FONT, fontSize: 11, color: "#34d399",
-              marginBottom: 12, letterSpacing: "0.06em",
-            }}>
-              SIMILAR RESEARCHERS
-            </div>
-
-            {related.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {related.map((r) => {
-                  const rc = getFieldColor(r.field);
-                  return (
-                    <div
-                      key={r.id}
-                      onClick={() => navigate(`/researcher/${r.id}`)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 8,
-                        padding: "8px 10px", cursor: "pointer",
-                        borderBottom: "1px solid #060a12",
-                        transition: "background 0.08s",
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = "#0f172a"}
-                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                    >
-                      <div style={{ width: 6, height: 6, background: rc, boxShadow: `0 0 4px ${rc}88` }} />
-                      <span style={{
-                        flex: 1, fontFamily: MONO_FONT, fontSize: 12, color: "#94a3b8",
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      }}>
-                        {r.name}
-                      </span>
-                      <span style={{
-                        fontFamily: MONO_FONT, fontSize: 10, color: "#94a3b8",
-                      }}>
-                        {fmtNum(r.citations)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#94a3b8" }}>
-                No similar researchers found.
-              </div>
-            )}
-          </div>
-        </div>
+function ScoreBar({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div>
+      <div style={barHeaderStyle}>
+        <span>{label}</span>
+        <strong>{Math.round(value)}</strong>
+      </div>
+      <div style={barTrackStyle}>
+        <div style={{ ...barFillStyle, width: `${value}%`, background: color }} />
       </div>
     </div>
   );
 }
+
+function EmptyText({ text }: { text: string }) {
+  return <div style={emptyTextStyle}>{text}</div>;
+}
+
+const pageStyle: React.CSSProperties = {
+  background:
+    "linear-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 1px), " +
+    "linear-gradient(90deg, rgba(15, 23, 42, 0.045) 1px, transparent 1px), #f8fafc",
+  backgroundSize: "44px 44px",
+  color: "#0f172a",
+  fontFamily: UI_FONT,
+  position: "absolute",
+  inset: "52px 0 0",
+  overflowY: "auto",
+  padding: "32px 28px 48px",
+};
+
+const shellStyle: React.CSSProperties = {
+  maxWidth: 1180,
+  margin: "0 auto",
+};
+
+const backButtonStyle: React.CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #cbd5e1",
+  borderRadius: 8,
+  color: "#334155",
+  cursor: "pointer",
+  fontFamily: UI_FONT,
+  fontSize: 13,
+  fontWeight: 720,
+  marginBottom: 16,
+  padding: "8px 11px",
+};
+
+const heroStyle: React.CSSProperties = {
+  alignItems: "center",
+  background: "rgba(255,255,255,0.94)",
+  border: "1px solid #dbe3ee",
+  borderRadius: 16,
+  boxShadow: "0 18px 42px rgba(15,23,42,0.08)",
+  display: "flex",
+  gap: 22,
+  padding: 26,
+};
+
+const avatarStyle: React.CSSProperties = {
+  alignItems: "center",
+  background: "#0f172a",
+  borderRadius: 18,
+  color: "#ffffff",
+  display: "flex",
+  flexShrink: 0,
+  fontSize: 24,
+  fontWeight: 820,
+  height: 82,
+  justifyContent: "center",
+  width: 82,
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  color: "#0f766e",
+  fontSize: 13,
+  fontWeight: 760,
+  letterSpacing: 0,
+  marginBottom: 6,
+};
+
+const titleStyle: React.CSSProperties = {
+  color: "#0f172a",
+  fontSize: 38,
+  fontWeight: 820,
+  lineHeight: 1.08,
+  margin: 0,
+};
+
+const subtitleStyle: React.CSSProperties = {
+  color: "#64748b",
+  fontSize: 16,
+  lineHeight: 1.5,
+  margin: "10px 0 0",
+};
+
+const chipRowStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+  marginTop: 14,
+};
+
+const chipStyle: React.CSSProperties = {
+  background: "#f8fafc",
+  border: "1px solid #dbe3ee",
+  borderRadius: 999,
+  color: "#64748b",
+  fontSize: 12,
+  fontWeight: 680,
+  padding: "6px 9px",
+};
+
+const fieldChipStyle: React.CSSProperties = {
+  ...chipStyle,
+  background: "#ffffff",
+};
+
+const metricGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+  marginTop: 18,
+};
+
+const metricCardStyle: React.CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #dbe3ee",
+  borderRadius: 12,
+  boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
+  padding: 18,
+};
+
+const metricLabelStyle: React.CSSProperties = {
+  color: "#64748b",
+  display: "block",
+  fontSize: 12,
+  fontWeight: 720,
+  marginBottom: 8,
+};
+
+const metricValueStyle: React.CSSProperties = {
+  color: "#0f172a",
+  fontSize: 28,
+  fontWeight: 820,
+};
+
+const mainGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 18,
+  gridTemplateColumns: "0.9fr 1.1fr",
+  marginTop: 18,
+};
+
+const panelStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.96)",
+  border: "1px solid #dbe3ee",
+  borderRadius: 14,
+  boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
+  padding: 22,
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  color: "#0f172a",
+  fontSize: 18,
+  fontWeight: 800,
+  margin: 0,
+};
+
+const sectionCaptionStyle: React.CSSProperties = {
+  color: "#64748b",
+  fontSize: 13,
+  lineHeight: 1.45,
+  margin: "5px 0 0",
+};
+
+const barStackStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 18,
+};
+
+const barHeaderStyle: React.CSSProperties = {
+  color: "#334155",
+  display: "flex",
+  fontSize: 13,
+  fontWeight: 720,
+  justifyContent: "space-between",
+  marginBottom: 8,
+};
+
+const barTrackStyle: React.CSSProperties = {
+  background: "#e2e8f0",
+  borderRadius: 999,
+  height: 9,
+  overflow: "hidden",
+};
+
+const barFillStyle: React.CSSProperties = {
+  borderRadius: 999,
+  height: "100%",
+};
+
+const topicGridStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 9,
+};
+
+const topicChipStyle: React.CSSProperties = {
+  background: "#eef6ff",
+  border: "1px solid #cfe2ff",
+  borderRadius: 999,
+  color: "#1e3a8a",
+  fontSize: 13,
+  fontWeight: 680,
+  padding: "7px 10px",
+};
+
+const relatedGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+};
+
+const relatedCardStyle: React.CSSProperties = {
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  color: "#0f172a",
+  display: "grid",
+  gap: 5,
+  padding: 14,
+  position: "relative",
+  textDecoration: "none",
+};
+
+const dotStyle: React.CSSProperties = {
+  borderRadius: 999,
+  height: 8,
+  position: "absolute",
+  right: 14,
+  top: 14,
+  width: 8,
+};
+
+const relatedNameStyle: React.CSSProperties = {
+  fontSize: 15,
+  fontWeight: 780,
+  paddingRight: 18,
+};
+
+const relatedMetaStyle: React.CSSProperties = {
+  color: "#64748b",
+  fontSize: 12,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const relatedStatsStyle: React.CSSProperties = {
+  color: "#0f766e",
+  fontSize: 12,
+  fontWeight: 720,
+};
+
+const emptyTextStyle: React.CSSProperties = {
+  background: "#f8fafc",
+  border: "1px dashed #cbd5e1",
+  borderRadius: 12,
+  color: "#64748b",
+  fontSize: 14,
+  padding: 18,
+};
+
+const stateCardStyle: React.CSSProperties = {
+  alignItems: "center",
+  background: "#ffffff",
+  border: "1px solid #dbe3ee",
+  borderRadius: 14,
+  boxShadow: "0 16px 36px rgba(15,23,42,0.08)",
+  display: "flex",
+  flexDirection: "column",
+  gap: 14,
+  justifyContent: "center",
+  margin: "80px auto 0",
+  maxWidth: 520,
+  minHeight: 180,
+  padding: 24,
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  ...backButtonStyle,
+  marginBottom: 0,
+};

@@ -66,6 +66,9 @@ INSTITUTION_QUERY_ALIASES = {
     "kaist": "KAIST",
     "카이스트": "KAIST",
     "korea advanced institute of science and technology": "KAIST",
+    "고려대": "Korea University",
+    "고려대학교": "Korea University",
+    "korea university": "Korea University",
     "snu": "SNU",
     "서울대": "SNU",
     "서울대학교": "SNU",
@@ -85,6 +88,12 @@ INSTITUTION_QUERY_ALIASES = {
     "oxford": "University of Oxford",
     "cambridge": "University of Cambridge",
 }
+
+COUNT_QUERY_TERMS = ("수", "몇", "몇 명", "몇 개", "how many", "count")
+PAPER_QUERY_TERMS = ("논문", "paper", "papers")
+PAPER_SEARCH_TERMS = ("검색", "찾아", "찾아줘", "search")
+LINEAGE_QUERY_TERMS = ("계보", "lineage", "citation graph", "인용 그래프")
+COMPARE_QUERY_TERMS = (" vs ", "비교", "compare", "versus", "와 ", "과 ")
 
 
 async def _topic_paper_count(db: AsyncSession, topic: str) -> tuple[str, int]:
@@ -133,6 +142,12 @@ def _parse_country_topic_trend(q: str) -> dict[str, str] | None:
         return {
             "type": "country",
             "entities": ",".join(countries[:3]),
+            "topic": topic,
+        }
+    if len(countries) == 1 and topic:
+        return {
+            "type": "country",
+            "entity": countries[0],
             "topic": topic,
         }
     return None
@@ -214,6 +229,110 @@ def _parse_institution_profile(q: str) -> str | None:
     return None
 
 
+def _find_institutions(normalized: str) -> list[str]:
+    institutions: list[str] = []
+    for alias, canonical in INSTITUTION_QUERY_ALIASES.items():
+        if alias.isascii():
+            matched = re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", normalized) is not None
+        else:
+            matched = alias in normalized
+        if matched and canonical not in institutions:
+            institutions.append(canonical)
+    return institutions
+
+
+def _parse_institution_comparison(q: str) -> dict[str, str] | None:
+    normalized = f" {q.strip().lower()} "
+    if not any(term in normalized for term in COMPARE_QUERY_TERMS):
+        return None
+    institutions = _find_institutions(normalized)
+    if len(institutions) >= 2:
+        return {
+            "comparison_type": "institution",
+            "entities": ",".join(institutions[:3]),
+        }
+    return None
+
+
+def _parse_lineage(q: str) -> dict[str, str] | None:
+    normalized = q.strip().lower()
+    if not any(term in normalized for term in LINEAGE_QUERY_TERMS):
+        return None
+    topic = _find_topic(normalized)
+    if topic:
+        canonical, matched_axes = canonicalize_facet_query(topic)
+        params = {"topic": canonical, "seed_limit": "8", "ancestor_limit": "20"}
+        if matched_axes:
+            params["axis"] = matched_axes[0]
+        return params
+    return None
+
+
+def _strip_paper_query_terms(q: str) -> str:
+    cleaned = q.strip()
+    for term in ("논문 검색", "논문 찾아줘", "논문 찾아", "검색", "찾아줘", "찾아", "paper search", "papers", "paper", "논문"):
+        cleaned = re.sub(re.escape(term), " ", cleaned, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def _parse_paper_route(q: str) -> dict[str, str] | None:
+    normalized = q.strip().lower()
+    if "attention is all you need" in normalized or "all you need is attention" in normalized:
+        return {"search": "Attention is all you need"}
+
+    has_paper_term = any(term in normalized for term in PAPER_QUERY_TERMS)
+    if not has_paper_term:
+        return None
+
+    topic = _find_topic(normalized)
+    wants_representative = any(
+        term in normalized
+        for term in ("대표", "핵심", "중요", "주요", "기반", "seminal", "representative", "core", "key")
+    )
+    wants_search = any(term in normalized for term in PAPER_SEARCH_TERMS)
+
+    if topic and wants_representative:
+        canonical, matched_axes = canonicalize_facet_query(topic)
+        params = {"topic": canonical}
+        if matched_axes:
+            params["axis"] = matched_axes[0]
+        return params
+
+    if wants_search:
+        query = _strip_paper_query_terms(q)
+        if query:
+            return {"search": query}
+        return {}
+
+    return None
+
+
+def _parse_simple_stats(q: str) -> dict[str, str] | None:
+    normalized = q.strip().lower()
+    if not any(term in normalized for term in COUNT_QUERY_TERMS):
+        return None
+
+    countries = _find_country_codes(normalized)
+    topic = _find_topic(normalized)
+    has_researcher = any(term in normalized for term in AUTHOR_RANKING_TERMS)
+    has_paper = any(term in normalized for term in PAPER_QUERY_TERMS)
+
+    if countries and has_researcher:
+        return {"kind": "country_researchers", "country": countries[0]}
+    if topic and has_paper:
+        return {"kind": "topic_papers", "topic": topic}
+    return None
+
+
+def _parse_country_strength(q: str) -> dict[str, str] | None:
+    normalized = q.strip().lower()
+    countries = _find_country_codes(normalized)
+    has_institution = bool(_find_institutions(normalized))
+    if countries and not has_institution and "강한" in normalized and "분야" in normalized:
+        return {"country": countries[0]}
+    return None
+
+
 @router.get("/universal")
 async def universal_search(
     q: str = Query(..., min_length=1),
@@ -227,6 +346,75 @@ async def universal_search(
     - answer: direct answer for stats queries
     """
     normalized_q = q.strip().lower()
+    institution_comparison = _parse_institution_comparison(q)
+    if institution_comparison:
+        return {
+            "intent": "comparison",
+            "params": institution_comparison,
+            "explanation": "기관별 publication-time 연구 성과를 비교합니다.",
+            "redirect": None,
+            "answer": None,
+            "answer_label": None,
+        }
+
+    simple_stats = _parse_simple_stats(q)
+    if simple_stats:
+        if simple_stats["kind"] == "country_researchers":
+            count = await db.scalar(
+                select(func.count()).select_from(Researcher).where(Researcher.country == simple_stats["country"])
+            ) or 0
+            return {
+                "intent": "stats",
+                "params": {},
+                "explanation": f"{simple_stats['country']} 연구자 수를 조회합니다.",
+                "redirect": None,
+                "answer": int(count),
+                "answer_label": f"{simple_stats['country']} 연구자",
+            }
+        if simple_stats["kind"] == "topic_papers":
+            canonical, count = await _topic_paper_count(db, simple_stats["topic"])
+            return {
+                "intent": "stats",
+                "params": {},
+                "explanation": f"{canonical} 관련 논문 수를 조회합니다.",
+                "redirect": None,
+                "answer": count,
+                "answer_label": f"'{canonical}' 관련 논문",
+            }
+
+    lineage_params = _parse_lineage(q)
+    if lineage_params:
+        return {
+            "intent": "topic_map",
+            "params": lineage_params,
+            "explanation": f"{lineage_params['topic']} 연구 계보 그래프로 이동합니다.",
+            "redirect": "/lineage",
+            "answer": None,
+            "answer_label": None,
+        }
+
+    paper_params = _parse_paper_route(q)
+    if paper_params is not None:
+        return {
+            "intent": "topic_map",
+            "params": paper_params,
+            "explanation": "논문 탐색 페이지로 이동합니다.",
+            "redirect": "/papers",
+            "answer": None,
+            "answer_label": None,
+        }
+
+    country_strength = _parse_country_strength(q)
+    if country_strength:
+        return {
+            "intent": "trending",
+            "params": country_strength,
+            "explanation": "국가별 강점 분야 전용 분석은 아직 준비 중이라, 우선 연구 분야 트렌딩 화면으로 이동합니다.",
+            "redirect": "/trending",
+            "answer": None,
+            "answer_label": None,
+        }
+
     institution_profile = _parse_institution_profile(q)
     if institution_profile:
         return {
