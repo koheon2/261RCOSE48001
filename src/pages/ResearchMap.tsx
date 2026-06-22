@@ -16,7 +16,7 @@ const ROLE_COLORS: Record<string, string> = {
   foundational: "#fbbf24",
   milestone:    "#a78bfa",
   current:      "#34d399",
-  notable:      "#475569",
+  notable:      "#94a3b8",
 };
 
 /* ── Types ── */
@@ -76,7 +76,7 @@ function fmtNum(n: number): string {
 
 function getCampColor(camps: Camp[], campName: string): string {
   const idx = camps.findIndex((c) => c.name === campName);
-  return idx >= 0 ? CAMP_COLORS[idx % CAMP_COLORS.length] : "#475569";
+  return idx >= 0 ? CAMP_COLORS[idx % CAMP_COLORS.length] : "#94a3b8";
 }
 
 /* ── Main Component ── */
@@ -215,7 +215,7 @@ export function ResearchMap() {
               x={x}
               y={padT + chartH + 6}
               textAnchor="middle"
-              fill="#475569"
+              fill="#94a3b8"
               fontSize="3"
               fontFamily={MONO_FONT}
             >
@@ -274,8 +274,8 @@ export function ResearchMap() {
         }}>
           <span style={{
             padding: "0 8px 0 14px",
-            fontFamily: PIXEL_FONT, fontSize: 9,
-            color: "#334155", flexShrink: 0,
+            fontFamily: PIXEL_FONT, fontSize: 11,
+            color: "#94a3b8", flexShrink: 0,
           }}>&gt;</span>
           <input
             value={query}
@@ -290,7 +290,7 @@ export function ResearchMap() {
           />
           {searchLoading && (
             <span style={{
-              padding: "0 14px", fontSize: 10, color: "#334155",
+              padding: "0 14px", fontSize: 10, color: "#94a3b8",
               fontFamily: MONO_FONT,
             }}>...</span>
           )}
@@ -299,7 +299,7 @@ export function ResearchMap() {
               onClick={() => { setQuery(""); setConcepts([]); setAnalysis(null); }}
               style={{
                 background: "transparent", border: "none",
-                color: "#334155", cursor: "pointer",
+                color: "#94a3b8", cursor: "pointer",
                 padding: "0 14px", fontFamily: MONO_FONT, fontSize: 16,
               }}
             >x</button>
@@ -328,7 +328,7 @@ export function ResearchMap() {
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
                 <div style={{ fontSize: 13, color: "#e2e8f0" }}>{c.name}</div>
-                <div style={{ fontSize: 10, color: "#475569", marginTop: 2 }}>
+                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
                   {fmtNum(c.works_count)} works
                 </div>
               </div>
@@ -345,7 +345,7 @@ export function ResearchMap() {
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "center",
             height: "100%",
-            fontFamily: PIXEL_FONT, fontSize: 8, color: "#1e293b",
+            fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8",
             letterSpacing: ".08em", lineHeight: 2.2,
             textAlign: "center", padding: 40,
           }}>
@@ -358,7 +358,7 @@ export function ResearchMap() {
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "center",
             height: "100%",
-            fontFamily: PIXEL_FONT, fontSize: 9, color: "#60a5fa",
+            fontFamily: PIXEL_FONT, fontSize: 11, color: "#60a5fa",
             letterSpacing: ".1em",
           }}>
             ANALYZING RESEARCH LANDSCAPE...
@@ -382,7 +382,7 @@ export function ResearchMap() {
                 {analysis.concept.name.toUpperCase()}
               </div>
               <div style={{
-                display: "flex", gap: 24, fontSize: 11, color: "#475569",
+                display: "flex", gap: 24, fontSize: 11, color: "#94a3b8",
                 marginBottom: 10,
               }}>
                 <span>{fmtNum(analysis.concept.total_works)} total works</span>
@@ -405,7 +405,7 @@ export function ResearchMap() {
             }}>
               <div style={{
                 padding: "12px 16px 4px",
-                fontFamily: PIXEL_FONT, fontSize: 7, color: "#334155",
+                fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8",
                 letterSpacing: ".08em",
               }}>
                 TIMELINE
@@ -429,7 +429,7 @@ export function ResearchMap() {
               }}>
                 <div style={{
                   padding: "12px 16px",
-                  fontFamily: PIXEL_FONT, fontSize: 7, color: "#334155",
+                  fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8",
                   letterSpacing: ".08em",
                   borderBottom: "1px solid #1e293b",
                 }}>
@@ -469,7 +469,7 @@ export function ResearchMap() {
                               }} />
                               {camp.name}
                             </span>
-                            <span style={{ fontSize: 10, color: "#475569" }}>
+                            <span style={{ fontSize: 10, color: "#94a3b8" }}>
                               {fmtNum(camp.paper_count)}
                             </span>
                           </div>
@@ -510,7 +510,7 @@ export function ResearchMap() {
                                 onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
                               >
                                 {p.title.length > 80 ? p.title.slice(0, 80) + "..." : p.title}
-                                <span style={{ color: "#475569", marginLeft: 6 }}>
+                                <span style={{ color: "#94a3b8", marginLeft: 6 }}>
                                   {p.year} &middot; {fmtNum(p.citations)} cit
                                 </span>
                               </a>
@@ -531,7 +531,7 @@ export function ResearchMap() {
               }}>
                 <div style={{
                   padding: "12px 16px",
-                  fontFamily: PIXEL_FONT, fontSize: 7, color: "#334155",
+                  fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8",
                   letterSpacing: ".08em",
                   borderBottom: "1px solid #1e293b",
                   flexShrink: 0,
@@ -566,7 +566,7 @@ export function ResearchMap() {
                           marginBottom: 4,
                         }}>
                           <span style={{
-                            fontFamily: PIXEL_FONT, fontSize: 6,
+                            fontFamily: PIXEL_FONT, fontSize: 11,
                             color: roleColor,
                             padding: "2px 6px",
                             border: `1px solid ${roleColor}44`,
@@ -576,14 +576,14 @@ export function ResearchMap() {
                           }}>
                             {isFoundational && "\u2B50 "}{paper.role}
                           </span>
-                          <span style={{ fontSize: 10, color: "#475569" }}>
+                          <span style={{ fontSize: 10, color: "#94a3b8" }}>
                             {paper.year}
                           </span>
                           <span style={{ fontSize: 10, color: "#60a5fa" }}>
                             {fmtNum(paper.citations)} cit
                           </span>
                           <span style={{
-                            fontSize: 9, color: campColor,
+                            fontSize: 11, color: campColor,
                             marginLeft: "auto",
                             maxWidth: 120,
                             overflow: "hidden", textOverflow: "ellipsis",
@@ -609,7 +609,7 @@ export function ResearchMap() {
                         {/* authors */}
                         {paper.authors.length > 0 && (
                           <div style={{
-                            fontSize: 10, color: "#475569",
+                            fontSize: 10, color: "#94a3b8",
                             overflow: "hidden", textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
                           }}>
@@ -623,8 +623,8 @@ export function ResearchMap() {
                   {analysis.key_papers.length === 0 && (
                     <div style={{
                       padding: 30, textAlign: "center",
-                      fontFamily: PIXEL_FONT, fontSize: 7,
-                      color: "#1e293b", letterSpacing: ".06em",
+                      fontFamily: PIXEL_FONT, fontSize: 11,
+                      color: "#94a3b8", letterSpacing: ".06em",
                     }}>
                       NO KEY PAPERS FOUND
                     </div>

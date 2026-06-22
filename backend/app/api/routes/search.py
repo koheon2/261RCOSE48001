@@ -165,11 +165,13 @@ def _parse_author_leaderboard(q: str) -> dict[str, str] | None:
     normalized = q.strip().lower()
     if not any(term in normalized for term in AUTHOR_RANKING_TERMS):
         return None
-    if not any(term in normalized for term in (*HOT_QUERY_TERMS, *TOP_QUERY_TERMS)):
-        return None
 
     countries = _find_country_codes(normalized)
     topic = _find_topic(normalized)
+    has_ranking_modifier = any(term in normalized for term in (*HOT_QUERY_TERMS, *TOP_QUERY_TERMS))
+    if not has_ranking_modifier and not countries and not topic:
+        return None
+
     params = {
         "type": "author",
         "sort": "hotness" if any(term in normalized for term in HOT_QUERY_TERMS) else "citations",

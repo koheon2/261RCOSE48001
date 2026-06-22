@@ -218,7 +218,7 @@ export function BenchmarkPage() {
       ctx.stroke();
       // Y label
       const val = maxCount - (maxCount / ySteps) * i;
-      ctx.fillStyle = "#334155";
+      ctx.fillStyle = "#94a3b8";
       ctx.font = `10px ${MONO_FONT}`;
       ctx.textAlign = "right";
       ctx.fillText(fmtNum(Math.round(val)), padL - 8, y + 3);
@@ -252,14 +252,14 @@ export function BenchmarkPage() {
       }
 
       // Year label
-      ctx.fillStyle = "#475569";
+      ctx.fillStyle = "#94a3b8";
       ctx.font = `9px ${MONO_FONT}`;
       ctx.textAlign = "center";
       ctx.fillText(String(entry.year), x + barW / 2, padT + chartH + 18);
     }
 
     // X axis line
-    ctx.strokeStyle = "#334155";
+    ctx.strokeStyle = "#94a3b8";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(padL, padT + chartH);
@@ -267,8 +267,8 @@ export function BenchmarkPage() {
     ctx.stroke();
 
     // Title
-    ctx.fillStyle = "#475569";
-    ctx.font = `7px ${PIXEL_FONT}`;
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `9px ${PIXEL_FONT}`;
     ctx.textAlign = "left";
     ctx.fillText("PAPERS PER YEAR", padL, padT - 12);
   }, [timeline]);
@@ -318,8 +318,8 @@ export function BenchmarkPage() {
         }}>
           <span style={{
             padding: "0 8px 0 14px",
-            fontFamily: PIXEL_FONT, fontSize: 9,
-            color: "#334155", flexShrink: 0,
+            fontFamily: PIXEL_FONT, fontSize: 11,
+            color: "#94a3b8", flexShrink: 0,
           }}>&gt;</span>
           <input
             value={query}
@@ -334,7 +334,7 @@ export function BenchmarkPage() {
           />
           {searchLoading && (
             <span style={{
-              padding: "0 14px", fontSize: 10, color: "#334155",
+              padding: "0 14px", fontSize: 10, color: "#94a3b8",
               fontFamily: MONO_FONT,
             }}>...</span>
           )}
@@ -343,7 +343,7 @@ export function BenchmarkPage() {
               onClick={() => { setQuery(""); setConcepts([]); }}
               style={{
                 background: "transparent", border: "none",
-                color: "#334155", cursor: "pointer",
+                color: "#94a3b8", cursor: "pointer",
                 padding: "0 14px", fontFamily: MONO_FONT, fontSize: 16,
               }}
             >x</button>
@@ -366,8 +366,8 @@ export function BenchmarkPage() {
           {concepts.length === 0 && !searchLoading && (
             <div style={{
               padding: "40px 24px",
-              fontFamily: PIXEL_FONT, fontSize: 7,
-              color: "#1e293b", textAlign: "center",
+              fontFamily: PIXEL_FONT, fontSize: 11,
+              color: "#94a3b8", textAlign: "center",
               lineHeight: 2.2, letterSpacing: ".06em",
             }}>
               {query.length >= 2
@@ -402,7 +402,7 @@ export function BenchmarkPage() {
                 }}>
                   {c.name}
                 </div>
-                <div style={{ fontSize: 10, color: "#475569" }}>
+                <div style={{ fontSize: 10, color: "#94a3b8" }}>
                   {fmtNum(c.works_count)} works &middot; {fmtNum(c.cited_by_count)} citations
                 </div>
               </div>
@@ -418,7 +418,7 @@ export function BenchmarkPage() {
           {!selectedConcept && (
             <div style={{
               flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-              fontFamily: PIXEL_FONT, fontSize: 8, color: "#1e293b",
+              fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8",
               letterSpacing: ".08em",
             }}>
               SELECT A CONCEPT FROM THE LEFT
@@ -428,7 +428,7 @@ export function BenchmarkPage() {
           {selectedConcept && loading && (
             <div style={{
               flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-              fontFamily: PIXEL_FONT, fontSize: 9, color: BAR_COLOR,
+              fontFamily: PIXEL_FONT, fontSize: 11, color: BAR_COLOR,
               letterSpacing: ".1em",
             }}>
               LOADING TIMELINE...
@@ -450,7 +450,7 @@ export function BenchmarkPage() {
                   {selectedConcept.name.toUpperCase()}
                 </div>
                 <div style={{
-                  display: "flex", gap: 24, fontSize: 11, color: "#475569",
+                  display: "flex", gap: 24, fontSize: 11, color: "#94a3b8",
                 }}>
                   <span>{fmtNum(selectedConcept.works_count)} total works</span>
                   <span>{fmtNum(selectedConcept.cited_by_count)} total citations</span>
@@ -473,11 +473,11 @@ export function BenchmarkPage() {
                   }}
                   style={{
                     padding: "8px 16px",
-                    fontFamily: PIXEL_FONT, fontSize: 8,
+                    fontFamily: PIXEL_FONT, fontSize: 11,
                     letterSpacing: ".04em",
                     background: matchedIds.length > 0 ? "#0d1117" : "#080b12",
                     border: `1px solid ${matchedIds.length > 0 ? "#1e4976" : "#0f1520"}`,
-                    color: matchedIds.length > 0 ? "#60a5fa" : "#1e293b",
+                    color: matchedIds.length > 0 ? "#60a5fa" : "#94a3b8",
                     cursor: matchedIds.length > 0 ? "pointer" : "default",
                     opacity: matchedIds.length > 0 ? 1 : 0.5,
                     transition: "all 0.15s",
@@ -487,7 +487,7 @@ export function BenchmarkPage() {
                 </button>
                 {matchedIds.length > 0 && (
                   <span style={{
-                    fontFamily: MONO_FONT, fontSize: 10, color: "#334155",
+                    fontFamily: MONO_FONT, fontSize: 10, color: "#94a3b8",
                     alignSelf: "center",
                   }}>
                     {matchedIds.length} author{matchedIds.length !== 1 ? "s" : ""} in DB
@@ -515,7 +515,7 @@ export function BenchmarkPage() {
                 flexShrink: 0,
               }}>
                 <div style={{
-                  fontFamily: PIXEL_FONT, fontSize: 7, color: "#334155",
+                  fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8",
                   letterSpacing: ".08em",
                 }}>
                   TOP PAPERS ({timeline.top_papers.length})
@@ -536,7 +536,7 @@ export function BenchmarkPage() {
                   }}>
                     <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                       <span style={{
-                        fontFamily: MONO_FONT, fontSize: 9, color: "#334155",
+                        fontFamily: MONO_FONT, fontSize: 11, color: "#94a3b8",
                         width: 22, flexShrink: 0, paddingTop: 2,
                       }}>
                         {idx + 1}.
@@ -549,7 +549,7 @@ export function BenchmarkPage() {
                           {paper.title}
                         </div>
                         <div style={{
-                          display: "flex", gap: 12, fontSize: 10, color: "#475569",
+                          display: "flex", gap: 12, fontSize: 10, color: "#94a3b8",
                           marginBottom: 4, flexWrap: "wrap",
                         }}>
                           {paper.year && <span>{paper.year}</span>}
@@ -558,7 +558,7 @@ export function BenchmarkPage() {
                           </span>
                         </div>
                         <div style={{
-                          fontSize: 10, color: "#475569",
+                          fontSize: 10, color: "#94a3b8",
                           display: "flex", gap: 4, flexWrap: "wrap",
                         }}>
                           {paper.authors.map((a, ai) => (
@@ -566,14 +566,14 @@ export function BenchmarkPage() {
                               key={a.id || ai}
                               onClick={() => linkedAuthors[a.name] && clickAuthor(a.id)}
                               style={{
-                                color: linkedAuthors[a.name] ? BAR_COLOR : "#475569",
+                                color: linkedAuthors[a.name] ? BAR_COLOR : "#94a3b8",
                                 cursor: linkedAuthors[a.name] ? "pointer" : "default",
                                 textDecoration: linkedAuthors[a.name] ? "underline" : "none",
                               }}
                             >
                               {a.name}
                               {linkedAuthors[a.name] && (
-                                <span style={{ marginLeft: 2, fontSize: 9 }}>🔗</span>
+                                <span style={{ marginLeft: 2, fontSize: 11 }}>🔗</span>
                               )}
                               {ai < paper.authors.length - 1 && ",\u00A0"}
                             </span>
@@ -586,8 +586,8 @@ export function BenchmarkPage() {
                 {timeline.top_papers.length === 0 && (
                   <div style={{
                     padding: "30px", textAlign: "center",
-                    fontFamily: PIXEL_FONT, fontSize: 7,
-                    color: "#1e293b", letterSpacing: ".06em",
+                    fontFamily: PIXEL_FONT, fontSize: 11,
+                    color: "#94a3b8", letterSpacing: ".06em",
                   }}>
                     NO PAPERS FOUND
                   </div>

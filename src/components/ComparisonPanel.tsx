@@ -1,12 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo } from "react";
 
-const PIXEL_FONT = "'Press Start 2P', monospace";
-const MONO_FONT  = "'Share Tech Mono', monospace";
+const UI_FONT = '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+const ENTITY_COLORS = ["#0f766e", "#2563eb", "#7c3aed"];
 
-const ENTITY_COLORS = ["#60a5fa", "#f87171", "#34d399"];
-const BG = "#020408";
-
-/* ── Types ── */
 interface Metric { [key: string]: number | string }
 
 interface CompEntity {
@@ -32,339 +28,404 @@ interface Props {
   onClose: () => void;
 }
 
-/* ── Metric display config ── */
-const METRIC_CONFIG: Record<string, { label: string; format: (v: number) => string; higherBetter: boolean }> = {
-  researchers:     { label: "RESEARCHERS",      format: fmtBig,   higherBetter: true },
-  contributions:   { label: "CONTRIBUTIONS",    format: fmtBig,   higherBetter: true },
-  papers:          { label: "PAPERS",           format: fmtBig,   higherBetter: true },
-  total_citations: { label: "TOTAL CITATIONS",  format: fmtBig,   higherBetter: true },
-  avg_citations:   { label: "AVG CITATIONS",    format: fmtBig,   higherBetter: true },
-  avg_paper_citations: { label: "AVG PAPER CIT.", format: fmtBig, higherBetter: true },
-  avg_h_index:     { label: "AVG H-INDEX",      format: v => v.toFixed(1), higherBetter: true },
-  citations:       { label: "CITATIONS",        format: fmtBig,   higherBetter: true },
-  h_index:         { label: "H-INDEX",          format: v => String(v), higherBetter: true },
-  works_count:     { label: "PUBLICATIONS",     format: fmtBig,   higherBetter: true },
-  clusters:        { label: "TOPIC CLUSTERS",   format: v => String(v), higherBetter: true },
+const METRIC_CONFIG: Record<string, { label: string; format: (v: number) => string }> = {
+  researchers: { label: "Researchers", format: fmtBig },
+  contributions: { label: "Contributions", format: fmtBig },
+  papers: { label: "Papers", format: fmtBig },
+  total_citations: { label: "Total citations", format: fmtBig },
+  avg_citations: { label: "Avg citations", format: fmtBig },
+  avg_paper_citations: { label: "Avg paper citations", format: fmtBig },
+  avg_h_index: { label: "Avg h-index", format: v => v.toFixed(1) },
+  citations: { label: "Citations", format: fmtBig },
+  h_index: { label: "H-index", format: v => String(Math.round(v)) },
+  works_count: { label: "Publications", format: fmtBig },
+  clusters: { label: "Topic clusters", format: v => String(Math.round(v)) },
 };
 
 function fmtBig(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
   return Math.round(n).toLocaleString();
 }
 
 function typeLabel(t: string) {
-  return { country: "COUNTRY BATTLE", topic: "TOPIC BATTLE",
-           institution: "INSTITUTION BATTLE", researcher: "RESEARCHER BATTLE" }[t] ?? "BATTLE";
+  return {
+    country: "Country comparison",
+    topic: "Topic comparison",
+    institution: "Institution comparison",
+    researcher: "Researcher comparison",
+  }[t] ?? "Comparison";
 }
 
-/* ── Animated stat bar ── */
-function StatBar({ value, max, color, winner }: { value: number; max: number; color: string; winner: boolean }) {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const t = setTimeout(() => setWidth(max > 0 ? (value / max) * 100 : 0), 80);
-    return () => clearTimeout(t);
-  }, [value, max]);
-
-  return (
-    <div style={{ position: "relative", height: 6, background: "#0d1117", borderRadius: 0, overflow: "hidden" }}>
-      <div style={{
-        position: "absolute", left: 0, top: 0, bottom: 0,
-        width: `${width}%`,
-        background: winner ? color : color + "88",
-        transition: "width 1.2s cubic-bezier(0.22, 1, 0.36, 1)",
-        boxShadow: winner ? `0 0 8px ${color}88` : "none",
-      }} />
-    </div>
-  );
+function metricLabel(metricKey: string, comparisonType: ComparisonData["comparison_type"]) {
+  if (metricKey === "researchers" && (comparisonType === "country" || comparisonType === "institution")) {
+    return "Contributions";
+  }
+  return METRIC_CONFIG[metricKey]?.label ?? metricKey;
 }
 
-/* ── Single metric row ── */
-function MetricRow({
-  metricKey, entities, colors, comparisonType,
-}: {
-  metricKey: string;
-  entities: CompEntity[];
-  colors: string[];
-  comparisonType: ComparisonData["comparison_type"];
-}) {
-  const cfg = METRIC_CONFIG[metricKey];
-  if (!cfg) return null;
-  const label = metricKey === "researchers" && (comparisonType === "country" || comparisonType === "institution")
-    ? "CONTRIBUTIONS"
-    : cfg.label;
-
-  const numericValues = entities.map(e => {
-    const v = e.metrics[metricKey];
-    return typeof v === "number" ? v : 0;
-  });
-
-  const max = Math.max(...numericValues, 1);
-  const winnerIdx = numericValues.indexOf(Math.max(...numericValues));
-
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        marginBottom: 6,
-      }}>
-        <span style={{ fontFamily: PIXEL_FONT, fontSize: 6, color: "#334155", letterSpacing: ".06em" }}>
-          {label}
-        </span>
-        <span style={{ fontFamily: PIXEL_FONT, fontSize: 6, color: colors[winnerIdx] + "cc" }}>
-          🏆 {entities[winnerIdx]?.name}
-        </span>
-      </div>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {entities.map((e, i) => {
-          const v = numericValues[i];
-          const isWinner = i === winnerIdx;
-          return (
-            <div key={e.key} style={{ flex: 1 }}>
-              <div style={{
-                fontFamily: MONO_FONT, fontSize: 13,
-                color: isWinner ? colors[i] : colors[i] + "99",
-                marginBottom: 4, textAlign: "center",
-                fontWeight: isWinner ? "bold" : "normal",
-              }}>
-                {cfg.format(v)}
-                {isWinner && <span style={{ marginLeft: 4, fontSize: 10 }}>▲</span>}
-              </div>
-              <StatBar value={v} max={max} color={colors[i]} winner={isWinner} />
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+function numericMetric(entity: CompEntity, key: string): number {
+  const value = entity.metrics[key];
+  return typeof value === "number" ? value : 0;
 }
 
-/* ── Main panel ── */
+function bestEntity(entities: CompEntity[], key: string): CompEntity | null {
+  if (entities.length === 0) return null;
+  return entities.reduce((best, current) => numericMetric(current, key) > numericMetric(best, key) ? current : best, entities[0]);
+}
+
+function comparisonInsight(type: ComparisonData["comparison_type"], entities: CompEntity[]) {
+  if (entities.length === 0) {
+    return { title: "Readout", body: "No comparison data is available for this query." };
+  }
+
+  const paperLeader = bestEntity(entities, "papers") ?? bestEntity(entities, "contributions");
+  const contributionLeader = bestEntity(entities, "contributions") ?? paperLeader;
+  const citationLeader = bestEntity(entities, "avg_paper_citations") ?? bestEntity(entities, "total_citations");
+
+  if (type === "country") {
+    return {
+      title: "Publication-time readout",
+      body: `${contributionLeader?.name ?? "The leading country"} has the largest author-affiliation contribution count in this slice. ${citationLeader?.name ?? "The citation leader"} leads on paper citation intensity. Counts use publication-year affiliations, not current researcher locations.`,
+    };
+  }
+
+  if (type === "institution") {
+    return {
+      title: "Institution readout",
+      body: `${contributionLeader?.name ?? "The leading institution"} has the broadest publication-time output in this comparison. ${citationLeader?.name ?? "The citation leader"} has the stronger average paper citation signal. Institution names are normalized where ROR/OpenAlex matching is available.`,
+    };
+  }
+
+  if (type === "topic") {
+    const axes = Array.from(new Set(entities.map(e => e.matched_axis).filter(Boolean))).join(", ") || "paper facets";
+    return {
+      title: "Topic readout",
+      body: `${paperLeader?.name ?? "The leading topic"} has the largest matched paper set. Matching is based on facet labels across ${axes}; citation values are paper-level metrics, not researcher h-index proxies.`,
+    };
+  }
+
+  return {
+    title: "Researcher readout",
+    body: `${citationLeader?.name ?? entities[0].name} currently leads on the strongest available impact metric in this comparison. Researcher metrics come from the researcher profile table.`,
+  };
+}
+
 export function ComparisonPanel({ data, onClose }: Props) {
   const { comparison_type, entities } = data;
-  const colors = entities.map((_, i) => ENTITY_COLORS[i] ?? "#94a3b8");
-  const [appeared, setAppeared] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const colors = entities.map((_, i) => ENTITY_COLORS[i] ?? "#475569");
 
-  useEffect(() => {
-    const t = setTimeout(() => setAppeared(true), 30);
-    return () => clearTimeout(t);
-  }, []);
-
-  // Keyboard close
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  // Figure out metric keys (numeric only)
-  const hasContributions = entities.some(e => typeof e.metrics.contributions === "number");
-  const hasAvgPaperCitations = entities.some(e => typeof e.metrics.avg_paper_citations === "number");
-  const metricKeys = Object.keys(entities[0]?.metrics ?? {}).filter(k => {
-    if ((comparison_type === "country" || comparison_type === "institution" || comparison_type === "topic") && k === "researchers" && hasContributions) return false;
-    if ((comparison_type === "country" || comparison_type === "institution" || comparison_type === "topic") && k === "avg_citations" && hasAvgPaperCitations) return false;
-    const v = entities[0]?.metrics[k];
-    return typeof v === "number" && k in METRIC_CONFIG;
-  });
+  const metricKeys = useMemo(() => {
+    const hasContributions = entities.some(e => typeof e.metrics.contributions === "number");
+    const hasAvgPaperCitations = entities.some(e => typeof e.metrics.avg_paper_citations === "number");
+    return Object.keys(entities[0]?.metrics ?? {}).filter(k => {
+      if ((comparison_type === "country" || comparison_type === "institution" || comparison_type === "topic") && k === "researchers" && hasContributions) return false;
+      if ((comparison_type === "country" || comparison_type === "institution" || comparison_type === "topic") && k === "avg_citations" && hasAvgPaperCitations) return false;
+      if ((comparison_type === "country" || comparison_type === "institution" || comparison_type === "topic") && k === "avg_h_index") return false;
+      const v = entities[0]?.metrics[k];
+      return typeof v === "number" && k in METRIC_CONFIG;
+    });
+  }, [comparison_type, entities]);
 
-  // Overall winner: most metric wins
-  const wins = entities.map(() => 0);
-  metricKeys.forEach(k => {
-    const vals = entities.map(e => typeof e.metrics[k] === "number" ? e.metrics[k] as number : 0);
-    const maxV = Math.max(...vals);
-    vals.forEach((v, i) => { if (v === maxV) wins[i]++; });
-  });
-  const overallWinnerIdx = wins.indexOf(Math.max(...wins));
+  const winnerIndex = useMemo(() => {
+    const wins = entities.map(() => 0);
+    metricKeys.forEach(key => {
+      const values = entities.map(e => typeof e.metrics[key] === "number" ? e.metrics[key] as number : 0);
+      const max = Math.max(...values);
+      values.forEach((value, index) => {
+        if (value === max) wins[index] += 1;
+      });
+    });
+    return wins.indexOf(Math.max(...wins));
+  }, [entities, metricKeys]);
 
-  // Fun insight
-  const insights: string[] = [];
-  if (comparison_type === "country" || comparison_type === "institution") {
-    const rcIdx = entities.map(e => (e.metrics.avg_citations as number) ?? 0).indexOf(
-      Math.max(...entities.map(e => (e.metrics.avg_citations as number) ?? 0))
-    );
-    const scIdx = entities.map(e => (e.metrics.researchers as number) ?? 0).indexOf(
-      Math.max(...entities.map(e => (e.metrics.researchers as number) ?? 0))
-    );
-    if (rcIdx !== scIdx) {
-      insights.push(`${entities[rcIdx].emoji} ${entities[rcIdx].name} leads in research efficiency`);
-      insights.push(`${entities[scIdx].emoji} ${entities[scIdx].name} leads in total scale`);
-    }
-  }
+  const insight = useMemo(() => comparisonInsight(comparison_type, entities), [comparison_type, entities]);
 
   return (
-    <div
-      style={{
-        position: "fixed", inset: 0, zIndex: 200,
-        background: `${BG}f0`,
-        display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center",
-        opacity: appeared ? 1 : 0,
-        transition: "opacity 0.25s ease",
-        backdropFilter: "blur(4px)",
-      }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        ref={panelRef}
-        style={{
-          width: "min(95vw, 960px)",
-          maxHeight: "90vh",
-          overflowY: "auto",
-          background: "#06080f",
-          border: "1px solid #1e293b",
-          boxShadow: "0 0 60px #000a",
-          transform: appeared ? "translateY(0)" : "translateY(24px)",
-          transition: "transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          padding: "20px 28px 16px",
-          borderBottom: "1px solid #1e293b",
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-        }}>
+    <div style={overlayStyle} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={panelStyle}>
+        <header style={headerStyle}>
           <div>
-            <div style={{
-              fontFamily: PIXEL_FONT, fontSize: 7, color: "#fbbf24",
-              letterSpacing: ".12em", marginBottom: 6,
-            }}>
-              ⚡ {typeLabel(comparison_type)} ⚡
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {entities.map((e, i) => (
-                <span key={e.key} style={{
-                  fontFamily: MONO_FONT, fontSize: 11,
-                  color: colors[i], padding: "2px 8px",
-                  border: `1px solid ${colors[i]}44`,
-                }}>
-                  {e.emoji} {e.name}
-                </span>
-              ))}
-            </div>
+            <h2 style={titleStyle}>{typeLabel(comparison_type)}</h2>
+            <p style={subtitleStyle}>
+              {entities.map(e => e.name).join(" vs ")}
+            </p>
           </div>
-          <button onClick={onClose} style={{
-            background: "none", border: "1px solid #1e293b",
-            color: "#475569", cursor: "pointer",
-            fontFamily: MONO_FONT, fontSize: 18, padding: "4px 12px",
-            lineHeight: 1,
-          }}>×</button>
-        </div>
+          <button onClick={onClose} style={closeButtonStyle}>Close</button>
+        </header>
 
-        {/* Entity name headers */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${entities.length}, 1fr)`,
-          gap: 0,
-          borderBottom: "1px solid #0d1117",
-        }}>
-          {entities.map((e, i) => (
-            <div key={e.key} style={{
-              padding: "20px 24px 16px",
-              borderRight: i < entities.length - 1 ? "1px solid #0d1117" : "none",
-              background: i % 2 === 0 ? "#06080f" : "#07090f",
-            }}>
-              <div style={{
-                fontFamily: PIXEL_FONT, fontSize: 14,
-                color: colors[i], marginBottom: 4, lineHeight: 1.4,
-              }}>{e.emoji}</div>
-              <div style={{
-                fontFamily: MONO_FONT, fontSize: 17,
-                color: "#e2e8f0", marginBottom: 2,
-              }}>{e.name}</div>
+        <section style={entityGridStyle}>
+          {entities.map((entity, index) => (
+            <div key={entity.key} style={{ ...entityCardStyle, borderTopColor: colors[index] }}>
+              <div style={entityNameStyle}>{entity.emoji} {entity.name}</div>
               {comparison_type === "researcher" && (
-                <div style={{ fontFamily: MONO_FONT, fontSize: 10, color: "#475569" }}>
-                  {e.field ?? "—"} · {e.institution ?? "—"}
-                </div>
+                <div style={entityMetaStyle}>{entity.field ?? "-"} · {entity.institution ?? "-"}</div>
               )}
-              {comparison_type === "topic" && e.top_cluster && (
-                <div style={{ fontFamily: MONO_FONT, fontSize: 9, color: "#475569" }}>
-                  axis: {e.matched_axis ?? "—"} · {e.top_cluster.length > 28 ? e.top_cluster.slice(0, 26) + "…" : e.top_cluster}
+              {comparison_type === "topic" && (
+                <div style={entityMetaStyle}>
+                  axis {entity.matched_axis ?? "-"}{entity.top_cluster ? ` · ${entity.top_cluster}` : ""}
                 </div>
               )}
               {(comparison_type === "country" || comparison_type === "institution") && (
-                <div style={{ fontFamily: MONO_FONT, fontSize: 10, color: "#475569" }}>
-                  top field: {(e.metrics.top_field as string) ?? "—"}
-                </div>
+                <div style={entityMetaStyle}>top field {(entity.metrics.top_field as string) ?? "-"}</div>
               )}
             </div>
           ))}
-        </div>
+        </section>
 
-        {/* Stats */}
-        <div style={{ padding: "24px 28px" }}>
-          {metricKeys.map(k => (
-            <MetricRow key={k} metricKey={k} entities={entities} colors={colors} comparisonType={comparison_type} />
-          ))}
-        </div>
+        <section style={insightStyle}>
+          <div style={smallLabelStyle}>{insight.title}</div>
+          <p style={insightTextStyle}>{insight.body}</p>
+        </section>
 
-        {/* Top researchers (country/institution only) */}
-        {(comparison_type === "country" || comparison_type === "institution") &&
-          entities.some(e => e.top_researcher) && (
-          <div style={{
-            padding: "0 28px 20px",
-            display: "grid",
-            gridTemplateColumns: `repeat(${entities.length}, 1fr)`,
-            gap: 12,
-          }}>
-            {entities.map((e, i) => e.top_researcher && (
-              <div key={e.key} style={{
-                padding: "10px 14px",
-                background: "#0d1117",
-                border: `1px solid ${colors[i]}22`,
-              }}>
-                <div style={{ fontFamily: PIXEL_FONT, fontSize: 6, color: "#334155", marginBottom: 6 }}>
-                  TOP CONTRIBUTOR
-                </div>
-                <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: colors[i] }}>
-                  {e.top_researcher.name}
-                </div>
-                <div style={{ fontFamily: MONO_FONT, fontSize: 10, color: "#475569", marginTop: 2 }}>
-                  {fmtBig(e.top_researcher.citations)} citations
+        <section style={metricTableStyle}>
+          {metricKeys.map(key => {
+            const values = entities.map(e => typeof e.metrics[key] === "number" ? e.metrics[key] as number : 0);
+            const max = Math.max(...values, 1);
+            const best = values.indexOf(Math.max(...values));
+            const config = METRIC_CONFIG[key];
+            return (
+              <div key={key} style={metricRowStyle}>
+                <div style={metricNameStyle}>{metricLabel(key, comparison_type)}</div>
+                <div style={metricCellsStyle}>
+                  {entities.map((entity, index) => {
+                    const value = values[index];
+                    const pct = (value / max) * 100;
+                    return (
+                      <div key={entity.key} style={metricCellStyle}>
+                        <div style={metricValueLineStyle}>
+                          <span style={{ color: index === best ? colors[index] : "#334155" }}>
+                            {config.format(value)}
+                          </span>
+                          {index === best && <strong style={{ color: colors[index] }}>best</strong>}
+                        </div>
+                        <div style={barTrackStyle}>
+                          <div style={{ width: `${pct}%`, height: "100%", background: colors[index] }} />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
+            );
+          })}
+        </section>
+
+        {(comparison_type === "country" || comparison_type === "institution") && entities.some(e => e.top_researcher) && (
+          <section style={contributorGridStyle}>
+            {entities.map((entity, index) => entity.top_researcher && (
+              <div key={entity.key} style={contributorCardStyle}>
+                <div style={smallLabelStyle}>Top contributor</div>
+                <strong style={{ color: colors[index] }}>{entity.top_researcher.name}</strong>
+                <span>{fmtBig(entity.top_researcher.citations)} citations</span>
+              </div>
             ))}
-          </div>
+          </section>
         )}
 
-        {/* Overall winner */}
-        <div style={{
-          margin: "0 28px 24px",
-          padding: "16px 20px",
-          background: `${colors[overallWinnerIdx]}11`,
-          border: `1px solid ${colors[overallWinnerIdx]}44`,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-        }}>
-          <div>
-            <div style={{ fontFamily: PIXEL_FONT, fontSize: 7, color: colors[overallWinnerIdx], marginBottom: 6 }}>
-              🏆 OVERALL WINNER
-            </div>
-            <div style={{ fontFamily: MONO_FONT, fontSize: 18, color: "#f8fafc" }}>
-              {entities[overallWinnerIdx].emoji} {entities[overallWinnerIdx].name}
-            </div>
-            <div style={{ fontFamily: MONO_FONT, fontSize: 10, color: "#64748b", marginTop: 4 }}>
-              wins {wins[overallWinnerIdx]}/{metricKeys.length} metrics
-            </div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            {insights.map((ins, i) => (
-              <div key={i} style={{
-                fontFamily: MONO_FONT, fontSize: 10, color: "#475569",
-                marginBottom: 3,
-              }}>· {ins}</div>
-            ))}
-          </div>
-        </div>
-
-        {/* Footer hint */}
-        <div style={{
-          padding: "10px 28px 16px",
-          fontFamily: PIXEL_FONT, fontSize: 6,
-          color: "#1e293b", letterSpacing: ".06em",
-        }}>
-          [ESC] OR CLICK OUTSIDE TO CLOSE
-        </div>
+        {winnerIndex >= 0 && (
+          <footer style={footerStyle}>
+            <span>Overall lead</span>
+            <strong style={{ color: colors[winnerIndex] }}>{entities[winnerIndex]?.name}</strong>
+          </footer>
+        )}
       </div>
     </div>
   );
 }
+
+const overlayStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 200,
+  background: "rgba(15, 23, 42, 0.36)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 24,
+};
+
+const panelStyle: React.CSSProperties = {
+  width: "min(96vw, 980px)",
+  maxHeight: "90vh",
+  overflowY: "auto",
+  background: "#ffffff",
+  border: "1px solid #dbe3ee",
+  borderRadius: 12,
+  boxShadow: "0 18px 50px rgba(15, 23, 42, 0.22)",
+  color: "#0f172a",
+  fontFamily: UI_FONT,
+};
+
+const headerStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 18,
+  alignItems: "flex-start",
+  borderBottom: "1px solid #e2e8f0",
+  padding: "22px 24px",
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: 26,
+  fontWeight: 780,
+  lineHeight: 1.2,
+  margin: 0,
+};
+
+const subtitleStyle: React.CSSProperties = {
+  color: "#64748b",
+  fontSize: 14,
+  lineHeight: 1.45,
+  margin: "6px 0 0",
+};
+
+const closeButtonStyle: React.CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #cbd5e1",
+  borderRadius: 8,
+  color: "#0f172a",
+  cursor: "pointer",
+  fontFamily: UI_FONT,
+  fontSize: 13,
+  fontWeight: 740,
+  padding: "8px 10px",
+};
+
+const entityGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+  padding: 18,
+};
+
+const entityCardStyle: React.CSSProperties = {
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "#e2e8f0",
+  borderTopWidth: 3,
+  borderTopStyle: "solid",
+  borderTopColor: "#0f766e",
+  borderRadius: 10,
+  padding: 14,
+  background: "#f8fafc",
+};
+
+const entityNameStyle: React.CSSProperties = {
+  color: "#0f172a",
+  fontSize: 17,
+  fontWeight: 760,
+  lineHeight: 1.3,
+};
+
+const entityMetaStyle: React.CSSProperties = {
+  color: "#64748b",
+  fontSize: 12,
+  lineHeight: 1.4,
+  marginTop: 6,
+};
+
+const insightStyle: React.CSSProperties = {
+  margin: "0 18px 14px",
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  padding: "13px 14px",
+};
+
+const insightTextStyle: React.CSSProperties = {
+  color: "#334155",
+  fontSize: 14,
+  lineHeight: 1.55,
+  margin: "5px 0 0",
+};
+
+const metricTableStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 0,
+  borderTop: "1px solid #e2e8f0",
+};
+
+const metricRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "180px minmax(0, 1fr)",
+  gap: 18,
+  borderBottom: "1px solid #e2e8f0",
+  padding: "15px 18px",
+};
+
+const metricNameStyle: React.CSSProperties = {
+  color: "#334155",
+  fontSize: 13,
+  fontWeight: 760,
+  paddingTop: 3,
+};
+
+const metricCellsStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  gap: 12,
+};
+
+const metricCellStyle: React.CSSProperties = {
+  minWidth: 0,
+};
+
+const metricValueLineStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 8,
+  color: "#334155",
+  fontSize: 14,
+  fontWeight: 760,
+  marginBottom: 7,
+};
+
+const barTrackStyle: React.CSSProperties = {
+  height: 6,
+  background: "#e2e8f0",
+  borderRadius: 6,
+  overflow: "hidden",
+};
+
+const contributorGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+  padding: 18,
+  borderBottom: "1px solid #e2e8f0",
+};
+
+const contributorCardStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 4,
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: 10,
+  color: "#64748b",
+  fontSize: 13,
+  padding: 13,
+};
+
+const smallLabelStyle: React.CSSProperties = {
+  color: "#64748b",
+  fontSize: 12,
+  fontWeight: 740,
+};
+
+const footerStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  background: "#f8fafc",
+  color: "#64748b",
+  fontSize: 14,
+  padding: "16px 18px",
+};

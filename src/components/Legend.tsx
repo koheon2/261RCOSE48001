@@ -27,7 +27,7 @@ export function Legend({ activeField, onFieldClick, tileStyle, onTileChange }: L
         background: "#1e293b",
         padding: "8px 12px",
         fontFamily: PIXEL_FONT,
-        fontSize: 9,
+        fontSize: 11,
         color: "#94a3b8",
         letterSpacing: "0.05em",
       }}>
@@ -36,7 +36,7 @@ export function Legend({ activeField, onFieldClick, tileStyle, onTileChange }: L
 
       {/* Tile style toggle */}
       <div style={{ padding: "10px 12px 0", borderBottom: "1px solid #0f172a" }}>
-        <div style={{ fontFamily: PIXEL_FONT, fontSize: 8, color: "#334155", marginBottom: 8, letterSpacing: "0.05em" }}>
+        <div style={{ fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8", marginBottom: 8, letterSpacing: "0.05em" }}>
           MAP_STYLE
         </div>
         <div style={{ display: "flex", gap: 3, marginBottom: 10 }}>
@@ -47,12 +47,12 @@ export function Legend({ activeField, onFieldClick, tileStyle, onTileChange }: L
               <button key={s} onClick={() => onTileChange(s)} style={{
                 flex: 1,
                 background: active ? "#00d4ff" : "#0f172a",
-                color: active ? "#000005" : "#475569",
+                color: active ? "#000005" : "#94a3b8",
                 border: `1px solid ${active ? "#00d4ff" : "#1e293b"}`,
                 padding: "6px 0",
                 cursor: "pointer",
                 fontFamily: PIXEL_FONT,
-                fontSize: 7,
+                fontSize: 11,
                 letterSpacing: "0.03em",
               }}>{labels[i]}</button>
             );
@@ -90,7 +90,7 @@ export function Legend({ activeField, onFieldClick, tileStyle, onTileChange }: L
             }} />
             <span style={{
               fontSize: 12,
-              color: activeField === field ? color : "#64748b",
+              color: activeField === field ? color : "#94a3b8",
               fontFamily: MONO_FONT,
             }}>
               {field}
@@ -103,10 +103,10 @@ export function Legend({ activeField, onFieldClick, tileStyle, onTileChange }: L
           borderTop: "1px solid #1e293b",
           paddingTop: 12,
         }}>
-          <div style={{ fontFamily: PIXEL_FONT, fontSize: 8, color: "#334155", marginBottom: 8 }}>
+          <div style={{ fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8", marginBottom: 8 }}>
             LEGEND
           </div>
-          <div style={{ fontSize: 12, color: "#475569", lineHeight: 2 }}>
+          <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 2 }}>
             &#x25B2; size = citations<br />
             &#x2605; glow = h-index
           </div>

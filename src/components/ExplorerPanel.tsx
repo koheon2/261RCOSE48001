@@ -90,7 +90,7 @@ export function ExplorerPanel({ activeField, onFieldChange, onSelect, selected }
           background: "#1e293b",
           padding: "8px 12px",
           fontFamily: PIXEL_FONT,
-          fontSize: 9,
+          fontSize: 11,
           color: "#94a3b8",
           letterSpacing: "0.05em",
           flexShrink: 0,
@@ -113,12 +113,12 @@ export function ExplorerPanel({ activeField, onFieldChange, onSelect, selected }
               onClick={() => onFieldChange(null)}
               style={{
                 background: activeField === null ? "#00d4ff" : "#0f172a",
-                color: activeField === null ? "#000005" : "#475569",
+                color: activeField === null ? "#000005" : "#94a3b8",
                 border: `1px solid ${activeField === null ? "#00d4ff" : "#1e293b"}`,
                 padding: "4px 8px",
                 cursor: "pointer",
                 fontFamily: PIXEL_FONT,
-                fontSize: 7,
+                fontSize: 11,
                 letterSpacing: "0.03em",
               }}
             >ALL</button>
@@ -131,12 +131,12 @@ export function ExplorerPanel({ activeField, onFieldChange, onSelect, selected }
                   onClick={() => onFieldChange(active ? null : f)}
                   style={{
                     background: active ? c : "#0f172a",
-                    color: active ? "#000005" : "#475569",
+                    color: active ? "#000005" : "#94a3b8",
                     border: `1px solid ${active ? c : "#1e293b"}`,
                     padding: "4px 8px",
                     cursor: "pointer",
                     fontFamily: PIXEL_FONT,
-                    fontSize: 7,
+                    fontSize: 11,
                     letterSpacing: "0.03em",
                     whiteSpace: "nowrap",
                   }}
@@ -149,7 +149,7 @@ export function ExplorerPanel({ activeField, onFieldChange, onSelect, selected }
             <div style={{
               marginTop: 6,
               fontSize: 11,
-              color: "#334155",
+              color: "#64748b",
               fontFamily: MONO_FONT,
             }}>
               {fieldStats.find((s) => s.field === activeField)?.count ?? 0} researchers
@@ -166,8 +166,8 @@ export function ExplorerPanel({ activeField, onFieldChange, onSelect, selected }
           {loading && (
             <div style={{
               padding: "16px",
-              fontSize: 9,
-              color: "#334155",
+              fontSize: 11,
+              color: "#64748b",
               fontFamily: MONO_FONT,
               textAlign: "center",
             }}>LOADING...</div>
@@ -201,7 +201,7 @@ export function ExplorerPanel({ activeField, onFieldChange, onSelect, selected }
                 <span style={{
                   fontFamily: MONO_FONT,
                   fontSize: 10,
-                  color: "#334155",
+                  color: "#64748b",
                   width: 22,
                   textAlign: "right",
                   flexShrink: 0,
@@ -223,7 +223,7 @@ export function ExplorerPanel({ activeField, onFieldChange, onSelect, selected }
                 <span style={{
                   fontFamily: MONO_FONT,
                   fontSize: 10,
-                  color: "#475569",
+                  color: "#94a3b8",
                   flexShrink: 0,
                 }}>{fmtNum(r.citations)}</span>
 
@@ -249,10 +249,10 @@ export function ExplorerPanel({ activeField, onFieldChange, onSelect, selected }
           background: "#06080f",
           border: "2px solid #1e293b",
           borderLeft: expanded ? "none" : "2px solid #1e293b",
-          color: "#475569",
+          color: "#94a3b8",
           cursor: "pointer",
           fontFamily: PIXEL_FONT,
-          fontSize: 8,
+          fontSize: 11,
           letterSpacing: "0.05em",
           padding: "10px 6px",
           writingMode: "vertical-rl",
@@ -262,7 +262,7 @@ export function ExplorerPanel({ activeField, onFieldChange, onSelect, selected }
           lineHeight: 1.6,
         }}
         onMouseEnter={(e) => (e.currentTarget.style.color = "#00d4ff")}
-        onMouseLeave={(e) => (e.currentTarget.style.color = "#475569")}
+        onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
       >
         {expanded ? "\u25C0 CLOSE" : "\u25B6 EXPLORE"}
       </button>

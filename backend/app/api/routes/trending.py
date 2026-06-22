@@ -17,6 +17,7 @@ QUALITY_PROVENANCE = {
 @router.get("")
 async def get_trending(
     limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
     axis: str = Query("aboutness", pattern="^(aboutness|method|task|application)$"),
     db: AsyncSession = Depends(get_db),
 ):
@@ -35,14 +36,15 @@ async def get_trending(
           AND recent_papers > 0
         ORDER BY growth_pct DESC, paper_count DESC
         LIMIT :limit
+        OFFSET :offset
         """),
-        {"axis": axis, "limit": limit},
+        {"axis": axis, "limit": limit, "offset": offset},
     )
     rows = result.fetchall()
 
     return [
         {
-            "rank": idx + 1,
+            "rank": offset + idx + 1,
             "topic_id": f"{axis}:{slugify_facet(row.facet_value)}",
             "topic_name": row.facet_value,
             "researcher_count": int(row.paper_count or 0),

@@ -76,8 +76,8 @@ export function SearchBar({ onSelect }: Props) {
         {query && (
           <button onClick={() => { setQuery(""); setResults([]); }}
             style={{
-              background: "transparent", border: "none", color: "#334155",
-              cursor: "pointer", padding: "0 12px", fontFamily: PIXEL_FONT, fontSize: 9,
+              background: "transparent", border: "none", color: "#94a3b8",
+              cursor: "pointer", padding: "0 12px", fontFamily: PIXEL_FONT, fontSize: 11,
             }}>&#x2715;</button>
         )}
       </div>
@@ -99,7 +99,7 @@ export function SearchBar({ onSelect }: Props) {
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
             >
               <div style={{ fontFamily: MONO_FONT, fontSize: 13, color: "#e2e8f0" }}>{r.name}</div>
-              <div style={{ fontFamily: MONO_FONT, fontSize: 11, color: "#475569", marginTop: 3 }}>
+              <div style={{ fontFamily: MONO_FONT, fontSize: 11, color: "#94a3b8", marginTop: 3 }}>
                 {r.institution ?? "\u2014"}  &middot;  {fmtNum(r.citations)} cit
               </div>
             </div>

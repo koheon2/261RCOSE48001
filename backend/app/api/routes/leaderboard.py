@@ -47,21 +47,22 @@ async def get_leaderboard(
     year_end: int | None = Query(None, ge=1900, le=2100),
     sort: str = Query("citations", description="citations | contributions | papers | hotness"),
     limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
     if type == "country":
-        return await _country_leaderboard(db, field, limit)
+        return await _country_leaderboard(db, field, limit, offset)
     elif type == "institution":
-        return await _institution_leaderboard(db, field, limit)
+        return await _institution_leaderboard(db, field, limit, offset)
     elif type == "author":
-        return await _author_leaderboard(db, country, topic, year_start, year_end, sort, limit)
+        return await _author_leaderboard(db, country, topic, year_start, year_end, sort, limit, offset)
     elif country or topic or year_start or year_end or sort in {"contributions", "papers", "hotness"}:
-        return await _author_leaderboard(db, country, topic, year_start, year_end, sort, limit)
+        return await _author_leaderboard(db, country, topic, year_start, year_end, sort, limit, offset)
     else:
-        return await _researcher_leaderboard(db, field, limit)
+        return await _researcher_leaderboard(db, field, limit, offset)
 
 
-async def _country_leaderboard(db: AsyncSession, field: str | None, limit: int):
+async def _country_leaderboard(db: AsyncSession, field: str | None, limit: int, offset: int):
     subfield = _paper_subfield(field)
     if not subfield:
         result = await db.execute(
@@ -70,8 +71,9 @@ async def _country_leaderboard(db: AsyncSession, field: str | None, limit: int):
             FROM publication_country_stats
             ORDER BY contributions DESC
             LIMIT :limit
+            OFFSET :offset
             """),
-            {"limit": limit},
+            {"limit": limit, "offset": offset},
         )
         rows = result.fetchall()
         return {
@@ -79,7 +81,7 @@ async def _country_leaderboard(db: AsyncSession, field: str | None, limit: int):
             "field": field,
             "entries": [
                 {
-                    "rank": i + 1,
+                    "rank": offset + i + 1,
                     "key": r.country,
                     "name": r.country,
                     "researcher_count": r.contributions,
@@ -114,6 +116,7 @@ async def _country_leaderboard(db: AsyncSession, field: str | None, limit: int):
     result = await db.execute(
         base.group_by(PaperAuthorAffiliation.country_code)
         .order_by(func.count(PaperAuthorAffiliation.id).desc())
+        .offset(offset)
         .limit(limit)
     )
     rows = result.fetchall()
@@ -122,7 +125,7 @@ async def _country_leaderboard(db: AsyncSession, field: str | None, limit: int):
         "field": field,
         "entries": [
             {
-                "rank": i + 1,
+                "rank": offset + i + 1,
                 "key": r.country,
                 "name": r.country,
                 "researcher_count": r.contributions,
@@ -137,7 +140,7 @@ async def _country_leaderboard(db: AsyncSession, field: str | None, limit: int):
     }
 
 
-async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: int):
+async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: int, offset: int):
     subfield = _paper_subfield(field)
     if not subfield:
         result = await db.execute(
@@ -168,8 +171,9 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
             LEFT JOIN metadata ON metadata.canonical_name = stats.institution_name
             ORDER BY stats.contributions DESC
             LIMIT :limit
+            OFFSET :offset
             """),
-            {"limit": limit},
+            {"limit": limit, "offset": offset},
         )
         rows = result.fetchall()
         return {
@@ -177,7 +181,7 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
             "field": field,
             "entries": [
                 {
-                    "rank": i + 1,
+                    "rank": offset + i + 1,
                     "key": r.institution,
                     "name": r.institution,
                     "researcher_count": r.contributions,
@@ -209,8 +213,9 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
         WHERE subfield = :subfield
         ORDER BY contributions DESC
         LIMIT :limit
+        OFFSET :offset
         """),
-        {"subfield": subfield, "limit": limit},
+        {"subfield": subfield, "limit": limit, "offset": offset},
     )
     rows = result.fetchall()
     return {
@@ -218,7 +223,7 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
         "field": field,
         "entries": [
             {
-                "rank": i + 1,
+                "rank": offset + i + 1,
                 "key": r.institution,
                 "name": r.institution,
                 "researcher_count": r.contributions,
@@ -237,14 +242,14 @@ async def _institution_leaderboard(db: AsyncSession, field: str | None, limit: i
     }
 
 
-async def _researcher_leaderboard(db: AsyncSession, field: str | None, limit: int):
+async def _researcher_leaderboard(db: AsyncSession, field: str | None, limit: int, offset: int):
     base = select(Researcher)
 
     if field:
         base = base.where(Researcher.field == field)
 
     result = await db.execute(
-        base.order_by(Researcher.citations.desc()).limit(limit)
+        base.order_by(Researcher.citations.desc()).offset(offset).limit(limit)
     )
     researchers = result.scalars().all()
     return {
@@ -252,7 +257,7 @@ async def _researcher_leaderboard(db: AsyncSession, field: str | None, limit: in
         "field": field,
         "entries": [
             {
-                "rank": i + 1,
+                "rank": offset + i + 1,
                 "key": r.id,
                 "name": r.name,
                 "institution": r.institution,
@@ -275,6 +280,7 @@ async def _author_leaderboard(
     year_end: int | None,
     sort: str,
     limit: int,
+    offset: int,
 ) -> dict:
     current_year = int(await db.scalar(text("SELECT EXTRACT(YEAR FROM CURRENT_DATE)::int")) or 2026)
     end_year = year_end or current_year
@@ -303,7 +309,7 @@ async def _author_leaderboard(
     # Keep the unfiltered global view on the legacy Researcher table. The
     # publication-time author summaries are optimized for sliced exploration.
     if not country and not canonical_topic and year_start is None and year_end is None:
-        return await _researcher_leaderboard(db, None, limit)
+        return await _researcher_leaderboard(db, None, limit, offset)
 
     summary_table = (
         "publication_author_facet_year_stats"
@@ -356,6 +362,7 @@ async def _author_leaderboard(
         FROM base
         ORDER BY {sort_expr}
         LIMIT :limit
+        OFFSET :offset
         """),
         {
             "country": country.upper() if country else None,
@@ -364,6 +371,7 @@ async def _author_leaderboard(
             "start_year": start_year,
             "end_year": end_year,
             "limit": limit,
+            "offset": offset,
         },
     )
     rows = result.fetchall()
@@ -377,7 +385,7 @@ async def _author_leaderboard(
         "sort": sort,
         "entries": [
             {
-                "rank": i + 1,
+                "rank": offset + i + 1,
                 "key": r.author_id,
                 "name": r.author_name or r.author_id,
                 "institution": r.institution_name,

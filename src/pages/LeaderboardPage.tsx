@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import type { CSSProperties } from "react";
 import { FIELD_COLORS, getFieldColor } from "../data/researchers";
 
 const API_BASE = "http://localhost:8000/api";
-const PIXEL_FONT = "'Press Start 2P', monospace";
-const MONO_FONT  = "'Share Tech Mono', monospace";
+const UI_FONT = '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+const PAGE_SIZE = 20;
 
 type LeaderboardType = "country" | "institution" | "researcher" | "author";
 
@@ -35,27 +36,27 @@ interface LeaderboardData {
   entries: LeaderboardEntry[];
 }
 
-function fmtNum(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
-  return n.toString();
-}
-
-function getMedal(rank: number): string {
-  if (rank === 1) return "🥇";
-  if (rank === 2) return "🥈";
-  if (rank === 3) return "🥉";
-  return "";
-}
-
-function getRankColor(rank: number): string {
-  if (rank === 1) return "#fbbf24";
-  if (rank === 2) return "#94a3b8";
-  if (rank === 3) return "#d97706";
-  return "#475569";
-}
-
 const FIELD_OPTIONS = ["", ...Object.keys(FIELD_COLORS)];
+
+function fmtNum(n: number | undefined): string {
+  const value = n ?? 0;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return Math.round(value).toLocaleString();
+}
+
+function typeLabel(type: LeaderboardType) {
+  if (type === "country") return "Countries";
+  if (type === "institution") return "Institutions";
+  if (type === "author") return "Hot authors";
+  return "Researchers";
+}
+
+function scoreFor(entry: LeaderboardEntry, type: LeaderboardType) {
+  if (type === "author") return entry.hotness_score ?? entry.citations ?? 0;
+  if (type === "researcher") return entry.citations ?? 0;
+  return entry.total_citations ?? 0;
+}
 
 export function LeaderboardPage() {
   const [searchParams] = useSearchParams();
@@ -68,12 +69,17 @@ export function LeaderboardPage() {
   const [yearEnd, setYearEnd] = useState(2026);
   const [data, setData] = useState<LeaderboardData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(0);
   const navigate = useNavigate();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ type, limit: "20" });
+      const params = new URLSearchParams({
+        type,
+        limit: String(PAGE_SIZE + 1),
+        offset: String(page * PAGE_SIZE),
+      });
       if (field && type !== "author") params.set("field", field);
       if (type === "author") {
         if (country) params.set("country", country.toUpperCase());
@@ -86,12 +92,17 @@ export function LeaderboardPage() {
       setData(await res.json());
     } catch (e) {
       console.error("Failed to fetch leaderboard:", e);
+      setData({ type, field: field || null, entries: [] });
     } finally {
       setLoading(false);
     }
-  }, [type, field, country, topic, sort, yearStart, yearEnd]);
+  }, [type, field, country, topic, sort, yearStart, yearEnd, page]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [type, field, country, topic, sort, yearStart, yearEnd]);
 
   useEffect(() => {
     const typeParam = searchParams.get("type");
@@ -112,478 +123,312 @@ export function LeaderboardPage() {
     if (yearEndParam) setYearEnd(Number(yearEndParam));
   }, [searchParams]);
 
-  const entries = data?.entries ?? [];
-  const maxScore = type === "researcher" || type === "author"
-    ? Math.max(...entries.map(e => e.citations ?? 0), 1)
-    : Math.max(...entries.map(e => e.total_citations ?? 0), 1);
+  const rawEntries = data?.entries ?? [];
+  const hasNext = rawEntries.length > PAGE_SIZE;
+  const entries = rawEntries.slice(0, PAGE_SIZE);
+  const maxScore = Math.max(...entries.map(e => scoreFor(e, type)), 1);
 
   const handleRowClick = (entry: LeaderboardEntry) => {
     if (type === "researcher" || type === "author") {
       navigate(`/researcher/${entry.key}`);
     } else if (type === "institution") {
       navigate(`/institutions/${encodeURIComponent(entry.name || entry.key)}`);
-    } else if (type === "country") {
-      // Compare top 2 countries (this + next)
-      const idx = entries.findIndex(e => e.key === entry.key);
-      const other = entries[idx === 0 ? 1 : 0];
-      if (other) {
-        navigate(`/?compare=true`);
-        // Use the AI search compare flow
-      }
+    } else {
+      navigate(`/progress?type=country&entity=${encodeURIComponent(entry.key || entry.name)}`);
     }
   };
 
   return (
-    <div style={{
-      position: "absolute", top: 52, left: 0, right: 0, bottom: 0,
-      background: "#06080f",
-      overflowY: "auto",
-      padding: "32px 40px",
-    }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <span style={{ fontSize: 24 }}>🏆</span>
-        <h1 style={{
-          fontFamily: PIXEL_FONT, fontSize: 14,
-          color: "#f8fafc", margin: 0, letterSpacing: "0.04em",
-        }}>
-          RESEARCH LEADERBOARD
-        </h1>
-      </div>
-
-      {/* Controls */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 16,
-        marginBottom: 24,
-      }}>
-        {/* Type tabs */}
-        <div style={{ display: "flex", gap: 2 }}>
-          {(["country", "institution", "researcher", "author"] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setType(t)}
-              style={{
-                background: type === t ? "#00d4ff14" : "transparent",
-                border: "none",
-                borderBottom: type === t ? "2px solid #00d4ff" : "2px solid transparent",
-                color: type === t ? "#00d4ff" : "#334155",
-                fontFamily: PIXEL_FONT, fontSize: 7,
-                padding: "8px 14px", cursor: "pointer",
-                letterSpacing: "0.06em",
-              }}
-            >
-              {t.toUpperCase()}
-            </button>
-          ))}
+    <main style={pageStyle}>
+      <section style={shellStyle}>
+        <div style={heroStyle}>
+          <div>
+            <div style={eyebrowStyle}>Publication-time ranking</div>
+            <h1 style={titleStyle}>{typeLabel(type)} Leaderboard</h1>
+            <p style={subtitleStyle}>
+              Ranked from quality-filtered paper, affiliation, and citation summaries.
+            </p>
+          </div>
+          <div style={heroStatStyle}>
+            <strong>{page * PAGE_SIZE + 1}-{page * PAGE_SIZE + entries.length}</strong>
+            <span>rank range</span>
+          </div>
         </div>
 
-        {/* Field filter */}
-        {type !== "author" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontFamily: PIXEL_FONT, fontSize: 6, color: "#334155" }}>FIELD:</span>
-          <select
-            value={field}
-            onChange={e => setField(e.target.value)}
-            style={{
-              background: "#0a0f1a",
-              border: "1px solid #1e293b",
-              color: "#e2e8f0",
-              fontFamily: MONO_FONT, fontSize: 12,
-              padding: "6px 10px",
-              outline: "none",
-            }}
-          >
-            <option value="">ALL</option>
-            {FIELD_OPTIONS.filter(f => f).map(f => (
-              <option key={f} value={f}>{f}</option>
+        <div style={controlBarStyle}>
+          <div style={segmentedStyle}>
+            {(["country", "institution", "researcher", "author"] as const).map(option => (
+              <button
+                key={option}
+                onClick={() => setType(option)}
+                style={type === option ? segmentActiveStyle : segmentStyle}
+              >
+                {typeLabel(option)}
+              </button>
             ))}
-          </select>
-        </div>
-        )}
+          </div>
 
-        {type === "author" && (
-          <>
-            <input
-              value={country}
-              onChange={e => setCountry(e.target.value.toUpperCase())}
-              placeholder="COUNTRY"
-              maxLength={2}
-              style={smallInputStyle}
-            />
-            <input
-              value={topic}
-              onChange={e => setTopic(e.target.value)}
-              placeholder="TOPIC e.g. diffusion"
-              style={{ ...smallInputStyle, width: 150 }}
-            />
-            <select
-              value={sort}
-              onChange={e => setSort(e.target.value)}
-              style={selectStyle}
-            >
-              <option value="citations">CITATIONS</option>
-              <option value="hotness">HOTNESS</option>
-              <option value="contributions">CONTRIBUTIONS</option>
-              <option value="papers">PAPERS</option>
-            </select>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontFamily: PIXEL_FONT, fontSize: 6, color: "#334155" }}>
-                {Math.min(yearStart, yearEnd)}-{Math.max(yearStart, yearEnd)}
-              </span>
-              <input
-                type="range"
-                min={2017}
-                max={2026}
-                value={yearStart}
-                onChange={e => setYearStart(Number(e.target.value))}
-                style={{ width: 90 }}
-              />
-              <input
-                type="range"
-                min={2017}
-                max={2026}
-                value={yearEnd}
-                onChange={e => setYearEnd(Number(e.target.value))}
-                style={{ width: 90 }}
-              />
+          {type !== "author" && (
+            <label style={filterLabelStyle}>
+              Field
+              <select value={field} onChange={e => setField(e.target.value)} style={selectStyle}>
+                <option value="">All fields</option>
+                {FIELD_OPTIONS.filter(Boolean).map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {type === "author" && (
+            <div style={authorFiltersStyle}>
+              <input value={country} onChange={e => setCountry(e.target.value.toUpperCase())} placeholder="Country" maxLength={2} style={smallInputStyle} />
+              <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="Topic e.g. diffusion" style={{ ...smallInputStyle, width: 170 }} />
+              <select value={sort} onChange={e => setSort(e.target.value)} style={selectStyle}>
+                <option value="citations">Citations</option>
+                <option value="hotness">Hotness</option>
+                <option value="contributions">Contributions</option>
+                <option value="papers">Papers</option>
+              </select>
+              <label style={rangeLabelStyle}>
+                <span>{Math.min(yearStart, yearEnd)}-{Math.max(yearStart, yearEnd)}</span>
+                <input type="range" min={2017} max={2026} value={yearStart} onChange={e => setYearStart(Number(e.target.value))} />
+                <input type="range" min={2017} max={2026} value={yearEnd} onChange={e => setYearEnd(Number(e.target.value))} />
+              </label>
             </div>
-          </>
-        )}
-      </div>
-
-      {/* Column headers */}
-      {type !== "researcher" && type !== "author" ? (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "60px 1fr 120px 160px 100px 200px",
-          gap: 12,
-          padding: "8px 16px",
-          borderBottom: "1px solid #1e293b",
-          marginBottom: 4,
-        }}>
-          <span style={headerStyle}>RANK</span>
-          <span style={headerStyle}>NAME</span>
-          <span style={{ ...headerStyle, textAlign: "right" }}>CONTRIBUTIONS</span>
-          <span style={{ ...headerStyle, textAlign: "right" }}>TOTAL CITATIONS</span>
-          <span style={{ ...headerStyle, textAlign: "right" }}>PAPERS</span>
-          <span style={headerStyle}>SCORE</span>
+          )}
         </div>
-      ) : type === "author" ? (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "60px 1fr 160px 90px 90px 90px 120px",
-          gap: 12,
-          padding: "8px 16px",
-          borderBottom: "1px solid #1e293b",
-          marginBottom: 4,
-        }}>
-          <span style={headerStyle}>RANK</span>
-          <span style={headerStyle}>AUTHOR</span>
-          <span style={headerStyle}>INSTITUTION</span>
-          <span style={{ ...headerStyle, textAlign: "right" }}>CONTRIB.</span>
-          <span style={{ ...headerStyle, textAlign: "right" }}>PAPERS</span>
-          <span style={{ ...headerStyle, textAlign: "right" }}>CIT.</span>
-          <span style={headerStyle}>HOT</span>
-        </div>
-      ) : (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "60px 1fr 160px 100px 100px 200px",
-          gap: 12,
-          padding: "8px 16px",
-          borderBottom: "1px solid #1e293b",
-          marginBottom: 4,
-        }}>
-          <span style={headerStyle}>RANK</span>
-          <span style={headerStyle}>NAME</span>
-          <span style={headerStyle}>INSTITUTION</span>
-          <span style={{ ...headerStyle, textAlign: "right" }}>CITATIONS</span>
-          <span style={{ ...headerStyle, textAlign: "right" }}>H-INDEX</span>
-          <span style={headerStyle}>SCORE</span>
-        </div>
-      )}
 
-      {/* Loading */}
-      {loading && (
-        <div style={{
-          fontFamily: MONO_FONT, fontSize: 14,
-          color: "#475569", padding: "40px 16px",
-          textAlign: "center",
-        }}>
-          Loading leaderboard...
-        </div>
-      )}
+        <section style={tableCardStyle}>
+          <div style={tableHeaderStyle}>
+            <span>Rank</span>
+            <span>{type === "author" ? "Author" : typeLabel(type).replace("Hot ", "")}</span>
+            <span>{type === "researcher" || type === "author" ? "Institution" : "Papers"}</span>
+            <span>{type === "country" || type === "institution" ? "Contributions" : "Citations"}</span>
+            <span>Score</span>
+          </div>
 
-      {/* Rows */}
-      {!loading && entries.map((entry) => {
-        const medal = getMedal(entry.rank);
-        const rankColor = getRankColor(entry.rank);
-        const score = type === "researcher" || type === "author" ? (entry.citations ?? 0) : (entry.total_citations ?? 0);
-        const barPct = (score / maxScore) * 100;
-        const isTop3 = entry.rank <= 3;
+          {loading && <div style={emptyStyle}>Loading leaderboard...</div>}
+          {!loading && entries.length === 0 && <div style={emptyStyle}>No leaderboard rows for this filter.</div>}
 
-        if (type !== "researcher" && type !== "author") {
-          return (
-            <div
-              key={entry.key}
-              onClick={() => handleRowClick(entry)}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "60px 1fr 120px 160px 100px 200px",
-                gap: 12,
-                padding: isTop3 ? "14px 16px" : "10px 16px",
-                borderBottom: "1px solid #0d1421",
-                cursor: "pointer",
-                background: isTop3 ? `${rankColor}06` : "transparent",
-                transition: "background 0.1s",
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = "#0a0f1a"}
-              onMouseLeave={e => e.currentTarget.style.background = isTop3 ? `${rankColor}06` : "transparent"}
-            >
-              {/* Rank */}
-              <div style={{
-                fontFamily: PIXEL_FONT,
-                fontSize: isTop3 ? 14 : 10,
-                color: rankColor,
-                display: "flex", alignItems: "center", gap: 4,
-              }}>
-                {medal || `#${entry.rank}`}
-                {!medal && ""}
-              </div>
-
-              {/* Name */}
-              <div style={{
-                fontFamily: isTop3 ? PIXEL_FONT : MONO_FONT,
-                fontSize: isTop3 ? 10 : 13,
-                color: isTop3 ? "#f1f5f9" : "#94a3b8",
-                display: "flex", alignItems: "center",
-              }}>
-                {entry.name}
-              </div>
-
-              {/* Researcher count */}
-              <div style={{
-                fontFamily: MONO_FONT, fontSize: 13, color: "#00d4ff",
-                display: "flex", alignItems: "center", justifyContent: "flex-end",
-              }}>
-                {fmtNum(entry.contributions ?? entry.researcher_count ?? 0)}
-              </div>
-
-              {/* Total citations */}
-              <div style={{
-                fontFamily: MONO_FONT, fontSize: 13, color: "#a78bfa",
-                display: "flex", alignItems: "center", justifyContent: "flex-end",
-              }}>
-                {fmtNum(entry.total_citations ?? 0)}
-              </div>
-
-              {/* Distinct papers */}
-              <div style={{
-                fontFamily: MONO_FONT, fontSize: 13, color: "#34d399",
-                display: "flex", alignItems: "center", justifyContent: "flex-end",
-              }}>
-                {fmtNum(entry.papers ?? 0)}
-              </div>
-
-              {/* Score bar */}
-              <div style={{
-                display: "flex", alignItems: "center",
-              }}>
-                <div style={{
-                  flex: 1, height: isTop3 ? 10 : 6, background: "#0f172a",
-                  position: "relative", overflow: "hidden",
-                }}>
-                  <div style={{
-                    position: "absolute", left: 0, top: 0, bottom: 0,
-                    width: `${barPct}%`,
-                    background: `linear-gradient(90deg, ${rankColor}44, ${rankColor})`,
-                    boxShadow: isTop3 ? `0 0 8px ${rankColor}33` : "none",
-                    transition: "width 0.5s ease",
-                  }} />
-                </div>
-              </div>
-            </div>
-          );
-        } else if (type === "author") {
-          const barPct = ((entry.hotness_score ?? entry.citations ?? 0) / Math.max(...entries.map(e => e.hotness_score ?? e.citations ?? 0), 1)) * 100;
-          return (
-            <div
-              key={entry.key}
-              onClick={() => handleRowClick(entry)}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "60px 1fr 160px 90px 90px 90px 120px",
-                gap: 12,
-                padding: isTop3 ? "14px 16px" : "10px 16px",
-                borderBottom: "1px solid #0d1421",
-                cursor: "pointer",
-                background: isTop3 ? `${rankColor}06` : "transparent",
-                transition: "background 0.1s",
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = "#0a0f1a"}
-              onMouseLeave={e => e.currentTarget.style.background = isTop3 ? `${rankColor}06` : "transparent"}
-            >
-              <div style={{
-                fontFamily: PIXEL_FONT,
-                fontSize: isTop3 ? 14 : 10,
-                color: rankColor,
-                display: "flex", alignItems: "center",
-              }}>
-                {medal || `#${entry.rank}`}
-              </div>
-              <div style={{
-                fontFamily: isTop3 ? PIXEL_FONT : MONO_FONT,
-                fontSize: isTop3 ? 10 : 13,
-                color: isTop3 ? "#f1f5f9" : "#94a3b8",
-                display: "flex", alignItems: "center",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>
-                {entry.name}
-              </div>
-              <div style={{
-                fontFamily: MONO_FONT, fontSize: 11, color: "#475569",
-                display: "flex", alignItems: "center",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>
-                {entry.institution ?? "---"}
-              </div>
-              <div style={{ ...numCellStyle, color: "#00d4ff" }}>{fmtNum(entry.contributions ?? 0)}</div>
-              <div style={{ ...numCellStyle, color: "#34d399" }}>{fmtNum(entry.papers ?? entry.works_count ?? 0)}</div>
-              <div style={{ ...numCellStyle, color: "#a78bfa" }}>{fmtNum(entry.citations ?? 0)}</div>
-              <div style={{ display: "flex", alignItems: "center" }}>
-                <div style={{ flex: 1, height: isTop3 ? 10 : 6, background: "#0f172a", position: "relative", overflow: "hidden" }}>
-                  <div style={{
-                    position: "absolute", left: 0, top: 0, bottom: 0,
-                    width: `${barPct}%`,
-                    background: `linear-gradient(90deg, ${rankColor}44, ${rankColor})`,
-                    transition: "width 0.5s ease",
-                  }} />
-                </div>
-              </div>
-            </div>
-          );
-        } else {
-          // Researcher type
-          const fc = getFieldColor(entry.field ?? null);
-          return (
-            <div
-              key={entry.key}
-              onClick={() => handleRowClick(entry)}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "60px 1fr 160px 100px 100px 200px",
-                gap: 12,
-                padding: isTop3 ? "14px 16px" : "10px 16px",
-                borderBottom: "1px solid #0d1421",
-                cursor: "pointer",
-                background: isTop3 ? `${rankColor}06` : "transparent",
-                transition: "background 0.1s",
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = "#0a0f1a"}
-              onMouseLeave={e => e.currentTarget.style.background = isTop3 ? `${rankColor}06` : "transparent"}
-            >
-              {/* Rank */}
-              <div style={{
-                fontFamily: PIXEL_FONT,
-                fontSize: isTop3 ? 14 : 10,
-                color: rankColor,
-                display: "flex", alignItems: "center",
-              }}>
-                {medal || `#${entry.rank}`}
-              </div>
-
-              {/* Name + field badge */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 6, height: 6, background: fc, boxShadow: `0 0 4px ${fc}88` }} />
-                <span style={{
-                  fontFamily: isTop3 ? PIXEL_FONT : MONO_FONT,
-                  fontSize: isTop3 ? 10 : 13,
-                  color: isTop3 ? "#f1f5f9" : "#94a3b8",
-                }}>
-                  {entry.name}
+          {!loading && entries.map(entry => {
+            const score = scoreFor(entry, type);
+            const barPct = Math.min(100, (score / maxScore) * 100);
+            const accent = entry.rank === 1 ? "#ca8a04" : entry.rank === 2 ? "#64748b" : entry.rank === 3 ? "#b45309" : "#2563eb";
+            const fieldColor = getFieldColor(entry.field ?? null);
+            return (
+              <button key={`${entry.rank}-${entry.key}`} onClick={() => handleRowClick(entry)} style={rowStyle}>
+                <span style={{ ...rankStyle, color: accent }}>#{entry.rank}</span>
+                <span style={nameCellStyle}>
+                  {type === "researcher" && <span style={{ ...fieldDotStyle, background: fieldColor }} />}
+                  <strong>{entry.name}</strong>
+                  {entry.field && <small>{entry.field}</small>}
+                  {entry.country && <small>{entry.country}</small>}
                 </span>
-              </div>
+                <span style={mutedCellStyle}>
+                  {type === "researcher" || type === "author"
+                    ? entry.institution ?? "Unknown"
+                    : fmtNum(entry.papers)}
+                </span>
+                <span style={numericCellStyle}>
+                  {type === "country" || type === "institution"
+                    ? fmtNum(entry.contributions ?? entry.researcher_count)
+                    : fmtNum(entry.citations)}
+                </span>
+                <span style={scoreCellStyle}>
+                  <span style={scoreBarTrackStyle}>
+                    <span style={{ ...scoreBarStyle, width: `${barPct}%`, background: accent }} />
+                  </span>
+                  <span style={scoreValueStyle}>{fmtNum(score)}</span>
+                </span>
+              </button>
+            );
+          })}
+        </section>
 
-              {/* Institution */}
-              <div style={{
-                fontFamily: MONO_FONT, fontSize: 11, color: "#475569",
-                display: "flex", alignItems: "center",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>
-                {entry.institution ?? "---"}
-              </div>
+        <PaginationBar
+          page={page}
+          pageSize={PAGE_SIZE}
+          shown={entries.length}
+          hasNext={hasNext}
+          loading={loading}
+          onPrev={() => setPage(prev => Math.max(0, prev - 1))}
+          onNext={() => setPage(prev => prev + 1)}
+        />
+      </section>
+    </main>
+  );
+}
 
-              {/* Citations */}
-              <div style={{
-                fontFamily: MONO_FONT, fontSize: 13, color: "#a78bfa",
-                display: "flex", alignItems: "center", justifyContent: "flex-end",
-              }}>
-                {fmtNum(entry.citations ?? 0)}
-              </div>
-
-              {/* H-index */}
-              <div style={{
-                fontFamily: MONO_FONT, fontSize: 13, color: "#34d399",
-                display: "flex", alignItems: "center", justifyContent: "flex-end",
-              }}>
-                {entry.h_index ?? "---"}
-              </div>
-
-              {/* Score bar */}
-              <div style={{ display: "flex", alignItems: "center" }}>
-                <div style={{
-                  flex: 1, height: isTop3 ? 10 : 6, background: "#0f172a",
-                  position: "relative", overflow: "hidden",
-                }}>
-                  <div style={{
-                    position: "absolute", left: 0, top: 0, bottom: 0,
-                    width: `${barPct}%`,
-                    background: `linear-gradient(90deg, ${rankColor}44, ${rankColor})`,
-                    boxShadow: isTop3 ? `0 0 8px ${rankColor}33` : "none",
-                    transition: "width 0.5s ease",
-                  }} />
-                </div>
-              </div>
-            </div>
-          );
-        }
-      })}
+function PaginationBar({
+  page,
+  pageSize,
+  shown,
+  hasNext,
+  loading,
+  onPrev,
+  onNext,
+}: {
+  page: number;
+  pageSize: number;
+  shown: number;
+  hasNext: boolean;
+  loading: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div style={paginationStyle}>
+      <span style={paginationTextStyle}>
+        Showing ranks {shown > 0 ? `${page * pageSize + 1}-${page * pageSize + shown}` : "0"}
+      </span>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onPrev} disabled={page === 0 || loading} style={page === 0 || loading ? disabledPageButtonStyle : pageButtonStyle}>
+          Previous
+        </button>
+        <button onClick={onNext} disabled={!hasNext || loading} style={!hasNext || loading ? disabledPageButtonStyle : pageButtonStyle}>
+          Next
+        </button>
+      </div>
     </div>
   );
 }
 
-const headerStyle: React.CSSProperties = {
-  fontFamily: "'Press Start 2P', monospace",
-  fontSize: 6,
-  color: "#334155",
-  letterSpacing: "0.08em",
+const pageStyle: CSSProperties = {
+  position: "absolute",
+  top: 52,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  overflowY: "auto",
+  background: "#f8fafc",
+  color: "#0f172a",
+  fontFamily: UI_FONT,
+  padding: "32px 24px 48px",
 };
-
-const smallInputStyle: React.CSSProperties = {
-  background: "#0a0f1a",
-  border: "1px solid #1e293b",
-  color: "#e2e8f0",
-  fontFamily: "'Share Tech Mono', monospace",
-  fontSize: 12,
-  padding: "6px 10px",
-  outline: "none",
-  width: 80,
+const shellStyle: CSSProperties = { maxWidth: 1180, margin: "0 auto" };
+const heroStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 24, marginBottom: 24 };
+const eyebrowStyle: CSSProperties = { color: "#2563eb", fontSize: 13, fontWeight: 760, textTransform: "uppercase" };
+const titleStyle: CSSProperties = { fontSize: 38, lineHeight: 1.05, margin: "8px 0 10px", letterSpacing: 0 };
+const subtitleStyle: CSSProperties = { color: "#64748b", fontSize: 16, margin: 0 };
+const heroStatStyle: CSSProperties = {
+  alignSelf: "flex-start",
+  minWidth: 132,
+  border: "1px solid #dbe3ee",
+  background: "#fff",
+  borderRadius: 14,
+  padding: 16,
+  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.06)",
+  display: "grid",
+  gap: 4,
 };
-
-const selectStyle: React.CSSProperties = {
-  background: "#0a0f1a",
-  border: "1px solid #1e293b",
-  color: "#e2e8f0",
-  fontFamily: "'Share Tech Mono', monospace",
-  fontSize: 12,
-  padding: "6px 10px",
-  outline: "none",
-};
-
-const numCellStyle: React.CSSProperties = {
-  fontFamily: "'Share Tech Mono', monospace",
-  fontSize: 13,
+const controlBarStyle: CSSProperties = {
   display: "flex",
+  flexWrap: "wrap",
   alignItems: "center",
-  justifyContent: "flex-end",
+  gap: 12,
+  padding: 14,
+  border: "1px solid #dbe3ee",
+  background: "#fff",
+  borderRadius: 16,
+  marginBottom: 18,
+};
+const segmentedStyle: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 4, padding: 4, background: "#f1f5f9", borderRadius: 12 };
+const segmentStyle: CSSProperties = {
+  border: "none",
+  borderRadius: 9,
+  background: "transparent",
+  color: "#64748b",
+  cursor: "pointer",
+  fontFamily: UI_FONT,
+  fontSize: 13,
+  fontWeight: 720,
+  padding: "8px 11px",
+};
+const segmentActiveStyle: CSSProperties = { ...segmentStyle, background: "#fff", color: "#0f172a", boxShadow: "0 1px 4px rgba(15, 23, 42, 0.12)" };
+const filterLabelStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, color: "#64748b", fontSize: 13, fontWeight: 720 };
+const selectStyle: CSSProperties = {
+  border: "1px solid #dbe3ee",
+  borderRadius: 10,
+  background: "#fff",
+  color: "#0f172a",
+  fontFamily: UI_FONT,
+  fontSize: 13,
+  outline: "none",
+  padding: "8px 10px",
+};
+const authorFiltersStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 };
+const smallInputStyle: CSSProperties = {
+  width: 92,
+  border: "1px solid #dbe3ee",
+  borderRadius: 10,
+  background: "#fff",
+  color: "#0f172a",
+  fontFamily: UI_FONT,
+  fontSize: 13,
+  outline: "none",
+  padding: "8px 10px",
+};
+const rangeLabelStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, color: "#475569", fontSize: 13, fontWeight: 720 };
+const tableCardStyle: CSSProperties = { border: "1px solid #dbe3ee", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 14px 36px rgba(15, 23, 42, 0.06)" };
+const tableHeaderStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "80px minmax(240px, 1.5fr) minmax(150px, 1fr) 130px minmax(180px, 1fr)",
+  gap: 14,
+  padding: "13px 18px",
+  background: "#f8fafc",
+  borderBottom: "1px solid #e2e8f0",
+  color: "#64748b",
+  fontSize: 12,
+  fontWeight: 800,
+  textTransform: "uppercase",
+};
+const rowStyle: CSSProperties = {
+  width: "100%",
+  display: "grid",
+  gridTemplateColumns: "80px minmax(240px, 1.5fr) minmax(150px, 1fr) 130px minmax(180px, 1fr)",
+  gap: 14,
+  alignItems: "center",
+  border: "none",
+  borderBottom: "1px solid #eef2f7",
+  background: "#fff",
+  cursor: "pointer",
+  fontFamily: UI_FONT,
+  padding: "14px 18px",
+  textAlign: "left",
+};
+const rankStyle: CSSProperties = { fontSize: 15, fontWeight: 850 };
+const nameCellStyle: CSSProperties = { minWidth: 0, display: "flex", flexDirection: "column", gap: 3, color: "#0f172a", fontSize: 15 };
+const mutedCellStyle: CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#64748b", fontSize: 13 };
+const numericCellStyle: CSSProperties = { color: "#0f172a", fontSize: 14, fontWeight: 760 };
+const scoreCellStyle: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 58px", gap: 10, alignItems: "center" };
+const scoreBarTrackStyle: CSSProperties = { height: 8, borderRadius: 999, background: "#eef2f7", overflow: "hidden" };
+const scoreBarStyle: CSSProperties = { display: "block", height: "100%", borderRadius: 999 };
+const scoreValueStyle: CSSProperties = { color: "#64748b", fontSize: 13, fontWeight: 720, textAlign: "right" };
+const fieldDotStyle: CSSProperties = { width: 8, height: 8, borderRadius: 999, display: "inline-block" };
+const emptyStyle: CSSProperties = { padding: 42, textAlign: "center", color: "#64748b", fontSize: 15 };
+const paginationStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  marginTop: 14,
+};
+const paginationTextStyle: CSSProperties = { color: "#64748b", fontSize: 13, fontWeight: 700 };
+const pageButtonStyle: CSSProperties = {
+  background: "#fff",
+  border: "1px solid #cbd5e1",
+  borderRadius: 10,
+  color: "#0f172a",
+  cursor: "pointer",
+  fontFamily: UI_FONT,
+  fontSize: 14,
+  fontWeight: 760,
+  padding: "9px 13px",
+};
+const disabledPageButtonStyle: CSSProperties = {
+  ...pageButtonStyle,
+  color: "#94a3b8",
+  cursor: "not-allowed",
+  opacity: 0.6,
 };

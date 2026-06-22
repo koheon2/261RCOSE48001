@@ -99,13 +99,13 @@ export function SidePanel({
                 background: "transparent",
                 border: "none",
                 borderBottom: tab === t ? "2px solid #00d4ff" : "2px solid transparent",
-                color: tab === t ? "#94a3b8" : "#334155",
-                fontFamily: PIXEL_FONT, fontSize: 7,
+                color: tab === t ? "#94a3b8" : "#94a3b8",
+                fontFamily: PIXEL_FONT, fontSize: 11,
                 cursor: "pointer", letterSpacing: "0.06em",
                 transition: "color 0.12s, border-color 0.12s",
               }}
-              onMouseEnter={(e) => { if (tab !== t) e.currentTarget.style.color = "#64748b"; }}
-              onMouseLeave={(e) => { if (tab !== t) e.currentTarget.style.color = "#334155"; }}
+              onMouseEnter={(e) => { if (tab !== t) e.currentTarget.style.color = "#cbd5e1"; }}
+              onMouseLeave={(e) => { if (tab !== t) e.currentTarget.style.color = "#94a3b8"; }}
             >
               {t === "fields" ? "FIELDS" : "TOP"}
             </button>
@@ -131,10 +131,10 @@ export function SidePanel({
               <div style={{ width: 7, height: 7, background: "#00d4ff", flexShrink: 0 }} />
               <span style={{
                 flex: 1, fontFamily: MONO_FONT, fontSize: 12,
-                color: activeField === null ? "#00d4ff" : "#64748b",
+                color: activeField === null ? "#00d4ff" : "#94a3b8",
               }}>ALL FIELDS</span>
               {totalCount > 0 && (
-                <span style={{ fontFamily: MONO_FONT, fontSize: 10, color: "#334155" }}>
+                <span style={{ fontFamily: MONO_FONT, fontSize: 10, color: "#94a3b8" }}>
                   {fmtNum(totalCount)}
                 </span>
               )}
@@ -168,10 +168,10 @@ export function SidePanel({
                   }} />
                   <span style={{
                     flex: 1, fontFamily: MONO_FONT, fontSize: 12,
-                    color: active ? c : "#64748b",
+                    color: active ? c : "#94a3b8",
                   }}>{f}</span>
                   {count > 0 && (
-                    <span style={{ fontFamily: MONO_FONT, fontSize: 10, color: "#334155" }}>
+                    <span style={{ fontFamily: MONO_FONT, fontSize: 10, color: "#94a3b8" }}>
                       {fmtNum(count)}
                     </span>
                   )}
@@ -182,8 +182,8 @@ export function SidePanel({
             {/* Map style */}
             <div style={{ marginTop: "auto", padding: "12px 16px", borderTop: "1px solid #1e293b" }}>
               <div style={{
-                fontFamily: PIXEL_FONT, fontSize: 7,
-                color: "#334155", marginBottom: 8, letterSpacing: "0.06em",
+                fontFamily: PIXEL_FONT, fontSize: 11,
+                color: "#94a3b8", marginBottom: 8, letterSpacing: "0.06em",
               }}>
                 MAP STYLE
               </div>
@@ -195,11 +195,11 @@ export function SidePanel({
                     <button key={s} onClick={() => onTileChange(s)} style={{
                       flex: 1,
                       background: isActive ? "#00d4ff" : "#0a0f1a",
-                      color:      isActive ? "#000" : "#475569",
+                      color:      isActive ? "#000" : "#94a3b8",
                       border:     `1px solid ${isActive ? "#00d4ff" : "#1e293b"}`,
                       padding: "6px 0",
                       cursor: "pointer",
-                      fontFamily: PIXEL_FONT, fontSize: 7,
+                      fontFamily: PIXEL_FONT, fontSize: 11,
                       letterSpacing: "0.03em",
                       transition: "all 0.1s",
                     }}>{labels[i]}</button>
@@ -207,7 +207,7 @@ export function SidePanel({
                 })}
               </div>
 
-              <div style={{ marginTop: 10, fontFamily: MONO_FONT, fontSize: 11, color: "#1e293b", lineHeight: 2 }}>
+              <div style={{ marginTop: 10, fontFamily: MONO_FONT, fontSize: 11, color: "#94a3b8", lineHeight: 2 }}>
                 ▲ size = citations &nbsp;·&nbsp; ★ glow = h-index
               </div>
             </div>
@@ -220,7 +220,7 @@ export function SidePanel({
             {loading && (
               <div style={{
                 padding: 16, textAlign: "center",
-                fontFamily: MONO_FONT, fontSize: 11, color: "#334155",
+                fontFamily: MONO_FONT, fontSize: 11, color: "#94a3b8",
               }}>
                 LOADING...
               </div>
@@ -244,7 +244,7 @@ export function SidePanel({
                   onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.background = "transparent"; }}
                 >
                   <span style={{
-                    fontFamily: MONO_FONT, fontSize: 9, color: "#334155",
+                    fontFamily: MONO_FONT, fontSize: 11, color: "#94a3b8",
                     width: 18, textAlign: "right", flexShrink: 0,
                   }}>{i + 1}</span>
                   <div style={{ width: 6, height: 6, background: rc, flexShrink: 0 }} />
@@ -254,7 +254,7 @@ export function SidePanel({
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   }}>{r.name}</span>
                   <span style={{
-                    fontFamily: MONO_FONT, fontSize: 10, color: "#475569", flexShrink: 0,
+                    fontFamily: MONO_FONT, fontSize: 10, color: "#94a3b8", flexShrink: 0,
                   }}>{fmtNum(r.citations)}</span>
                 </div>
               );
@@ -281,8 +281,8 @@ export function SidePanel({
         onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(6, 8, 15, 0.97)")}
       >
         <span style={{
-          fontFamily: PIXEL_FONT, fontSize: 8,
-          color: "#334155",
+          fontFamily: PIXEL_FONT, fontSize: 11,
+          color: "#94a3b8",
           writingMode: "vertical-rl",
           textOrientation: "mixed",
           letterSpacing: "0.1em",

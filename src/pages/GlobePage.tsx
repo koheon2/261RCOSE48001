@@ -2,12 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CesiumGlobe } from "../components/CesiumGlobe";
 import { InfoCard }    from "../components/InfoCard";
-import { SidePanel }   from "../components/SidePanel";
 import type { Researcher } from "../data/researchers";
 
 const API_BASE = "http://localhost:8000/api";
-const PIXEL_FONT = "'Press Start 2P', monospace";
-const MONO_FONT  = "'Share Tech Mono', monospace";
+const UI_FONT = '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
 
 type TileStyle = "dark" | "light" | "voyager";
 
@@ -18,9 +16,9 @@ interface Props {
   onCountChange: (n: number) => void;
 }
 
-export function GlobePage({ selected, onSelect, visibleCount: _visibleCount, onCountChange }: Props) {
+export function GlobePage({ selected, onSelect, visibleCount, onCountChange }: Props) {
   const [activeField, setActiveField]   = useState<string | null>(null);
-  const [tileStyle, setTileStyle]       = useState<TileStyle>("dark");
+  const [tileStyle]                     = useState<TileStyle>("voyager");
   const [related, setRelated]           = useState<Researcher[]>([]);
   const [filterCountry, setFilterCountry] = useState<string | null>(null);
   const [focusCity, setFocusCity]       = useState<string | null>(null);
@@ -88,6 +86,7 @@ export function GlobePage({ selected, onSelect, visibleCount: _visibleCount, onC
 
   return (
     <>
+      <div style={globeBackdropStyle} />
       <CesiumGlobe
         selected={selected}
         related={related}
@@ -101,15 +100,6 @@ export function GlobePage({ selected, onSelect, visibleCount: _visibleCount, onC
         highlightedResearchers={highlightedResearchers}
       />
 
-      <SidePanel
-        activeField={activeField}
-        onFieldChange={setActiveField}
-        tileStyle={tileStyle}
-        onTileChange={setTileStyle}
-        selected={selected}
-        onSelect={onSelect}
-      />
-
       <InfoCard
         researcher={selected}
         related={related}
@@ -117,41 +107,100 @@ export function GlobePage({ selected, onSelect, visibleCount: _visibleCount, onC
         onSelect={onSelect}
       />
 
-      {/* Filter / highlight banner */}
-      {(filterLabel || highlightedResearchers.length > 0) && (
-        <div style={{
-          position: "absolute", top: 60, left: "50%", transform: "translateX(-50%)",
-          background: "#0d1117ee", border: "1px solid #1e4976",
-          padding: "8px 18px",
-          display: "flex", alignItems: "center", gap: 14,
-          zIndex: 20,
-        }}>
-          <span style={{ fontFamily: PIXEL_FONT, fontSize: 8, color: "#60a5fa", letterSpacing: ".06em" }}>
-            {filterLabel && `FILTER: ${filterLabel}`}
-            {filterLabel && highlightedResearchers.length > 0 && "  ·  "}
-            {highlightedResearchers.length > 0 &&
-              `${highlightedResearchers.length} HIGHLIGHTED`}
-          </span>
-          <button
-            onClick={clearAll}
-            style={{
-              background: "none", border: "1px solid #334155",
-              color: "#475569", cursor: "pointer",
-              fontFamily: MONO_FONT, fontSize: 12, padding: "2px 8px",
-            }}
-          >×</button>
+      <div style={mapHeaderStyle}>
+        <div>
+          <h1 style={mapTitleStyle}>Researcher Globe</h1>
+          <div style={mapMetaStyle}>
+            {visibleCount.toLocaleString()} visible researchers
+            {filterLabel ? ` · ${filterLabel}` : ""}
+            {highlightedResearchers.length > 0 ? ` · ${highlightedResearchers.length} highlighted` : ""}
+          </div>
         </div>
-      )}
+        {(filterLabel || highlightedResearchers.length > 0) && (
+          <button onClick={clearAll} style={clearButtonStyle}>Clear</button>
+        )}
+      </div>
 
       {!selected && highlightedResearchers.length === 0 && (
-        <div style={{
-          position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
-          fontFamily: PIXEL_FONT, fontSize: 8, color: "#1a2540",
-          letterSpacing: "0.08em", pointerEvents: "none", whiteSpace: "nowrap", zIndex: 10,
-        }}>
-          [CLICK] SELECT &nbsp;·&nbsp; [DRAG] ROTATE &nbsp;·&nbsp; [SCROLL] ZOOM
+        <div style={hintStyle}>
+          Click a researcher · Drag to rotate · Scroll to zoom
         </div>
       )}
     </>
   );
 }
+
+const mapHeaderStyle: React.CSSProperties = {
+  position: "absolute",
+  top: 64,
+  left: 24,
+  zIndex: 20,
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 14,
+  background: "rgba(255, 255, 255, 0.92)",
+  border: "1px solid #dbe3ee",
+  borderRadius: 12,
+  boxShadow: "0 12px 34px rgba(15, 23, 42, 0.18)",
+  color: "#0f172a",
+  fontFamily: UI_FONT,
+  padding: "14px 16px",
+  minWidth: 280,
+};
+
+const globeBackdropStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: "52px 0 0",
+  pointerEvents: "none",
+  zIndex: 0,
+  background:
+    "radial-gradient(circle at 50% 48%, rgba(15, 23, 42, 0.12) 0 24%, rgba(15, 23, 42, 0.045) 35%, transparent 56%), " +
+    "linear-gradient(115deg, transparent 0 46%, rgba(15, 118, 110, 0.035) 46% 46.22%, transparent 46.22% 100%), " +
+    "linear-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 1px), " +
+    "linear-gradient(90deg, rgba(15, 23, 42, 0.045) 1px, transparent 1px), #f8fafc",
+  backgroundSize: "100% 100%, 100% 100%, 44px 44px, 44px 44px, auto",
+};
+
+const mapTitleStyle: React.CSSProperties = {
+  fontSize: 18,
+  lineHeight: 1.2,
+  fontWeight: 780,
+  margin: 0,
+};
+
+const mapMetaStyle: React.CSSProperties = {
+  color: "#64748b",
+  fontSize: 13,
+  lineHeight: 1.4,
+  marginTop: 5,
+};
+
+const clearButtonStyle: React.CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #cbd5e1",
+  borderRadius: 8,
+  color: "#0f172a",
+  cursor: "pointer",
+  fontFamily: UI_FONT,
+  fontSize: 13,
+  fontWeight: 740,
+  padding: "7px 9px",
+};
+
+const hintStyle: React.CSSProperties = {
+  position: "absolute",
+  bottom: 20,
+  left: "50%",
+  transform: "translateX(-50%)",
+  background: "rgba(255, 255, 255, 0.9)",
+  border: "1px solid #dbe3ee",
+  borderRadius: 999,
+  color: "#475569",
+  fontFamily: UI_FONT,
+  fontSize: 13,
+  fontWeight: 650,
+  padding: "8px 12px",
+  pointerEvents: "none",
+  whiteSpace: "nowrap",
+  zIndex: 10,
+};

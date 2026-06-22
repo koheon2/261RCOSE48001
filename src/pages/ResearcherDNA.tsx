@@ -61,7 +61,7 @@ export function ResearcherDNA() {
         position: "absolute", top: 52, left: 0, right: 0, bottom: 0,
         background: "#06080f",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontFamily: MONO_FONT, fontSize: 14, color: "#475569",
+        fontFamily: MONO_FONT, fontSize: 14, color: "#94a3b8",
       }}>
         Loading researcher data...
       </div>
@@ -74,7 +74,7 @@ export function ResearcherDNA() {
         position: "absolute", top: 52, left: 0, right: 0, bottom: 0,
         background: "#06080f",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontFamily: MONO_FONT, fontSize: 14, color: "#475569",
+        fontFamily: MONO_FONT, fontSize: 14, color: "#94a3b8",
       }}>
         Researcher not found.
       </div>
@@ -111,12 +111,12 @@ export function ResearcherDNA() {
         onClick={() => navigate(-1)}
         style={{
           background: "transparent", border: "1px solid #1e293b",
-          color: "#475569", fontFamily: PIXEL_FONT, fontSize: 7,
+          color: "#94a3b8", fontFamily: PIXEL_FONT, fontSize: 11,
           padding: "6px 12px", cursor: "pointer", marginBottom: 24,
           letterSpacing: "0.06em",
         }}
         onMouseEnter={e => { e.currentTarget.style.color = "#00d4ff"; e.currentTarget.style.borderColor = "#00d4ff44"; }}
-        onMouseLeave={e => { e.currentTarget.style.color = "#475569"; e.currentTarget.style.borderColor = "#1e293b"; }}
+        onMouseLeave={e => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.borderColor = "#1e293b"; }}
       >
         &lt; BACK
       </button>
@@ -150,7 +150,7 @@ export function ResearcherDNA() {
           {/* Field badge */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16 }}>
             <div style={{ width: 8, height: 8, background: color, boxShadow: `0 0 8px ${color}` }} />
-            <span style={{ fontFamily: PIXEL_FONT, fontSize: 7, color, letterSpacing: "0.08em" }}>
+            <span style={{ fontFamily: PIXEL_FONT, fontSize: 11, color, letterSpacing: "0.08em" }}>
               {(researcher.field ?? "UNKNOWN").toUpperCase()}
             </span>
           </div>
@@ -164,10 +164,10 @@ export function ResearcherDNA() {
           </h2>
 
           {/* Institution */}
-          <div style={{ fontFamily: MONO_FONT, fontSize: 13, color: "#4b6080", marginBottom: 4 }}>
+          <div style={{ fontFamily: MONO_FONT, fontSize: 13, color: "#94a3b8", marginBottom: 4 }}>
             {researcher.institution ?? "---"}
           </div>
-          <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#334155", marginBottom: 20 }}>
+          <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#94a3b8", marginBottom: 20 }}>
             {researcher.country ?? "---"}
           </div>
 
@@ -184,7 +184,7 @@ export function ResearcherDNA() {
                 padding: "8px 0",
                 borderBottom: "1px solid #0d1421",
               }}>
-                <span style={{ fontFamily: PIXEL_FONT, fontSize: 6, color: "#334155", letterSpacing: "0.06em" }}>
+                <span style={{ fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8", letterSpacing: "0.06em" }}>
                   {s.label}
                 </span>
                 <span style={{ fontFamily: MONO_FONT, fontSize: 16, color: s.c }}>
@@ -196,7 +196,7 @@ export function ResearcherDNA() {
 
           {/* Impact bar */}
           <div style={{ marginTop: 16 }}>
-            <span style={{ fontFamily: PIXEL_FONT, fontSize: 6, color: "#334155", letterSpacing: "0.06em" }}>
+            <span style={{ fontFamily: PIXEL_FONT, fontSize: 11, color: "#94a3b8", letterSpacing: "0.06em" }}>
               IMPACT
             </span>
             <div style={{ height: 4, background: "#0f172a", marginTop: 6 }}>
@@ -217,7 +217,7 @@ export function ResearcherDNA() {
           padding: 20,
         }}>
           <div style={{
-            fontFamily: PIXEL_FONT, fontSize: 8, color: "#00d4ff",
+            fontFamily: PIXEL_FONT, fontSize: 11, color: "#00d4ff",
             marginBottom: 16, letterSpacing: "0.06em",
           }}>
             TOPIC DNA ({topicCount} TOPICS)
@@ -232,7 +232,7 @@ export function ResearcherDNA() {
                 return (
                   <div key={topicId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{
-                      fontFamily: MONO_FONT, fontSize: 11, color: "#64748b",
+                      fontFamily: MONO_FONT, fontSize: 11, color: "#94a3b8",
                       minWidth: 180, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                     }}>
                       {name}
@@ -249,7 +249,7 @@ export function ResearcherDNA() {
                       }} />
                     </div>
                     <span style={{
-                      fontFamily: MONO_FONT, fontSize: 10, color: "#475569",
+                      fontFamily: MONO_FONT, fontSize: 10, color: "#94a3b8",
                       minWidth: 35, textAlign: "right",
                     }}>
                       {barPct.toFixed(0)}%
@@ -259,7 +259,7 @@ export function ResearcherDNA() {
               })}
             </div>
           ) : (
-            <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#334155", padding: "20px 0" }}>
+            <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#94a3b8", padding: "20px 0" }}>
               No topic data available for this researcher.
             </div>
           )}
@@ -274,7 +274,7 @@ export function ResearcherDNA() {
             padding: 20,
           }}>
             <div style={{
-              fontFamily: PIXEL_FONT, fontSize: 8, color: "#a78bfa",
+              fontFamily: PIXEL_FONT, fontSize: 11, color: "#a78bfa",
               marginBottom: 12, letterSpacing: "0.06em",
             }}>
               CITATION GROWTH (5YR)
@@ -288,7 +288,7 @@ export function ResearcherDNA() {
                     <line x1={chartPad.left} y1={y} x2={chartPad.left + innerW} y2={y}
                       stroke="#1e293b" strokeWidth={0.5} />
                     <text x={chartPad.left - 6} y={y + 3} textAnchor="end"
-                      fill="#334155" fontFamily={MONO_FONT} fontSize={9}>
+                      fill="#94a3b8" fontFamily={MONO_FONT} fontSize={9}>
                       {fmtNum(Math.round(maxCit * frac))}
                     </text>
                   </g>
@@ -307,7 +307,7 @@ export function ResearcherDNA() {
                   <circle cx={p.x} cy={p.y} r={3} fill="#a78bfa" />
                   <circle cx={p.x} cy={p.y} r={6} fill="#a78bfa" opacity={0.15} />
                   <text x={p.x} y={chartH - 6} textAnchor="middle"
-                    fill="#475569" fontFamily={MONO_FONT} fontSize={9}>
+                    fill="#94a3b8" fontFamily={MONO_FONT} fontSize={9}>
                     {p.year}
                   </text>
                 </g>
@@ -329,7 +329,7 @@ export function ResearcherDNA() {
             flex: 1,
           }}>
             <div style={{
-              fontFamily: PIXEL_FONT, fontSize: 8, color: "#34d399",
+              fontFamily: PIXEL_FONT, fontSize: 11, color: "#34d399",
               marginBottom: 12, letterSpacing: "0.06em",
             }}>
               SIMILAR RESEARCHERS
@@ -360,7 +360,7 @@ export function ResearcherDNA() {
                         {r.name}
                       </span>
                       <span style={{
-                        fontFamily: MONO_FONT, fontSize: 10, color: "#334155",
+                        fontFamily: MONO_FONT, fontSize: 10, color: "#94a3b8",
                       }}>
                         {fmtNum(r.citations)}
                       </span>
@@ -369,7 +369,7 @@ export function ResearcherDNA() {
                 })}
               </div>
             ) : (
-              <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#334155" }}>
+              <div style={{ fontFamily: MONO_FONT, fontSize: 12, color: "#94a3b8" }}>
                 No similar researchers found.
               </div>
             )}

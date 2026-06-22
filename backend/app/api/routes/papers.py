@@ -1,5 +1,7 @@
 """Paper discovery, representative lists, and paper details."""
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,10 +17,55 @@ PAPER_SEARCH_VECTOR = (
     "to_tsvector('english'::regconfig, "
     "coalesce(p.title, '') || ' ' || coalesce(p.topic, '') || ' ' || coalesce(p.abstract, ''))"
 )
+PAPER_TITLE_SEARCH_VECTOR = "to_tsvector('english'::regconfig, coalesce(p.title, ''))"
+SEARCH_STOP_WORDS = {
+    "about",
+    "after",
+    "again",
+    "against",
+    "all",
+    "and",
+    "are",
+    "because",
+    "been",
+    "before",
+    "between",
+    "but",
+    "for",
+    "from",
+    "has",
+    "have",
+    "into",
+    "is",
+    "its",
+    "need",
+    "not",
+    "of",
+    "on",
+    "only",
+    "that",
+    "the",
+    "their",
+    "then",
+    "there",
+    "these",
+    "this",
+    "through",
+    "to",
+    "using",
+    "with",
+    "you",
+    "your",
+}
 
 QUALITY_PROVENANCE = {
     "quality_filtered": True,
     "quality_policy": "conservative_v0",
+}
+
+SEARCH_PROVENANCE = {
+    "quality_filtered": False,
+    "quality_policy": "interactive_search_unfiltered_v0",
 }
 
 
@@ -168,6 +215,26 @@ def _axis_filter(axis: str | None = None) -> list[str]:
     if axis and axis != SPECIFIC_AXIS:
         return [axis]
     return list(FACET_TYPES)
+
+
+def _specific_search_term_count(query: str) -> int:
+    terms = {
+        term
+        for term in re.findall(r"[a-zA-Z0-9][a-zA-Z0-9-]{2,}", query.lower())
+        if term not in SEARCH_STOP_WORDS
+    }
+    return len(terms)
+
+
+def _title_query_terms(query: str) -> list[str]:
+    return re.findall(r"[a-zA-Z0-9][a-zA-Z0-9-]{1,}", query.lower())
+
+
+def _alternate_title_query(query: str) -> str:
+    match = re.fullmatch(r"\s*all\s+you\s+need\s+is\s+(.+?)\s*", query, flags=re.IGNORECASE)
+    if match:
+        return f"{match.group(1).strip()} is all you need"
+    return query
 
 
 async def _specific_topic_option(
@@ -476,17 +543,63 @@ async def representative_papers(
             resolved_topic, matched_axes = canonicalize_facet_query(topic_value)
             axes = _axis_filter(axis) if axis else (matched_axes or list(FACET_TYPES))
             params.update({"topic": resolved_topic, "axes": axes})
-            topic_clause = """
-            AND EXISTS (
-                SELECT 1
-                FROM paper_facets pf
-                WHERE pf.paper_id = p.id
-                  AND pf.facet_value = :topic
-                  AND pf.facet_type = ANY(:axes)
-            )
-            """
             matched_axes = axes
             match_kind = "facet"
+
+            result = await db.execute(
+                text(f"""
+                WITH candidate_status AS MATERIALIZED (
+                    SELECT paper_id, candidate_score
+                    FROM paper_enrichment_status
+                    WHERE source = 'openalex'
+                      AND status = 'fetched'
+                ),
+                candidate_matches AS MATERIALIZED (
+                    SELECT DISTINCT pes.paper_id
+                    FROM candidate_status pes
+                    JOIN paper_facets pf ON pf.paper_id = pes.paper_id
+                    WHERE pf.facet_value = :topic
+                      AND pf.facet_type = ANY(:axes)
+                )
+                SELECT
+                    p.id, p.title, p.year, p.citations, p.fwci, p.doi, p.open_access,
+                    p.type, p.subfield, p.topic, NULL::text AS abstract
+                FROM candidate_matches cm
+                JOIN papers p ON p.id = cm.paper_id
+                WHERE p.year IS NOT NULL
+                  {year_clause}
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM paper_quality_flags pqf
+                      WHERE pqf.paper_id = p.id
+                        AND pqf.severity = 'exclude'
+                  )
+                ORDER BY {order_clause}
+                LIMIT :limit
+                """),
+                params,
+            )
+            rows = result.fetchall()
+            annotations = await _paper_annotations(db, [r.id for r in rows])
+            papers = []
+            for row in rows:
+                item = _paper_item(row, annotations)
+                item["abstract"] = None
+                item["affiliations"] = []
+                item["quality_flags"] = []
+                item["authors"] = item["authors"][:3]
+                papers.append(item)
+
+            return {
+                "topic": resolved_topic or None,
+                "query": topic_value or None,
+                "matched_axes": matched_axes,
+                "match_kind": match_kind,
+                "sort": sort,
+                "limit": limit,
+                "papers": papers,
+                **QUALITY_PROVENANCE,
+            }
 
     result = await db.execute(
         text(f"""
@@ -727,6 +840,186 @@ async def get_topic_timeline(
     )
 
 
+@router.get("/search")
+async def search_papers(
+    q: str = Query(..., min_length=1, description="Paper title, DOI, or OpenAlex work id"),
+    year_from: int | None = Query(None),
+    year_to: int | None = Query(None),
+    limit: int = Query(10, ge=1, le=50),
+    offset: int = Query(0, ge=0, le=500),
+    db: AsyncSession = Depends(get_db),
+):
+    """Search papers by title/full text query, DOI, or OpenAlex work id."""
+    query = q.strip()
+    openalex_query = query.removeprefix("https://openalex.org/").removeprefix("http://openalex.org/")
+    doi_query = query.removeprefix("https://doi.org/").removeprefix("http://doi.org/")
+    title_alt_query = _alternate_title_query(query)
+    looks_like_work_id = openalex_query.startswith("W") and openalex_query[1:].isdigit()
+    looks_like_doi = doi_query.startswith("10.") and "/" in doi_query
+    fetch_limit = min(offset + limit, 200)
+    params: dict[str, object] = {
+        "q": query,
+        "title_alt_q": title_alt_query,
+        "openalex_query": openalex_query,
+        "doi_query": doi_query,
+        "title_terms": _title_query_terms(query),
+        "limit": fetch_limit,
+    }
+
+    year_clause = ""
+    if year_from is not None:
+        year_clause += " AND p.year >= :year_from"
+        params["year_from"] = year_from
+    if year_to is not None:
+        year_clause += " AND p.year <= :year_to"
+        params["year_to"] = year_to
+
+    exact_rows = []
+    if looks_like_work_id:
+        exact_result = await db.execute(
+            text(f"""
+            SELECT
+                p.id, p.title, p.year, p.citations, p.fwci, p.doi, p.open_access,
+                p.type, p.subfield, p.topic, NULL::text AS abstract,
+                0 AS match_rank,
+                0::real AS search_score
+            FROM papers p
+            WHERE p.id = :openalex_query
+              AND p.year IS NOT NULL
+              {year_clause}
+            LIMIT :limit
+            """),
+            params,
+        )
+        exact_rows = exact_result.fetchall()
+
+    if looks_like_doi and len(exact_rows) < limit:
+        exact_result = await db.execute(
+            text(f"""
+            SELECT
+                p.id, p.title, p.year, p.citations, p.fwci, p.doi, p.open_access,
+                p.type, p.subfield, p.topic, NULL::text AS abstract,
+                1 AS match_rank,
+                0::real AS search_score
+            FROM papers p
+            WHERE p.doi = :doi_query
+              AND p.year IS NOT NULL
+              {year_clause}
+            ORDER BY p.citations DESC NULLS LAST
+            LIMIT :limit
+            """),
+            params,
+        )
+        exact_rows = [*exact_rows, *exact_result.fetchall()]
+
+    remaining = max(0, fetch_limit - len(exact_rows))
+    title_rows = []
+    if remaining > 0 and not looks_like_doi and not looks_like_work_id:
+        title_result = await db.execute(
+            text(f"""
+            SELECT
+                p.id, p.title, p.year, p.citations, p.fwci, p.doi, p.open_access,
+                p.type, p.subfield, p.topic, NULL::text AS abstract,
+                5 AS match_rank,
+                CASE
+                    WHEN lower(p.title) = lower(:q)
+                      OR lower(p.title) = lower(:title_alt_q) THEN 0
+                    WHEN lower(p.title) LIKE lower(:q) || ':%'
+                      OR lower(p.title) LIKE lower(:title_alt_q) || ':%' THEN 1
+                    WHEN lower(p.title) LIKE '%' || lower(:q) || '%'
+                      OR lower(p.title) LIKE '%' || lower(:title_alt_q) || '%' THEN 2
+                    WHEN NOT EXISTS (
+                        SELECT 1
+                        FROM unnest(CAST(:title_terms AS text[])) AS term(value)
+                        WHERE lower(p.title) NOT LIKE '%' || term.value || '%'
+                    ) THEN 3
+                    ELSE 4
+                END AS title_match_rank,
+                ts_rank_cd({PAPER_TITLE_SEARCH_VECTOR}, websearch_to_tsquery('english', :q)) AS search_score
+            FROM papers p
+            WHERE (
+                {PAPER_TITLE_SEARCH_VECTOR} @@ websearch_to_tsquery('english', :q)
+                OR {PAPER_TITLE_SEARCH_VECTOR} @@ websearch_to_tsquery('english', :title_alt_q)
+              )
+              AND p.year IS NOT NULL
+              {year_clause}
+            ORDER BY
+                title_match_rank ASC,
+                search_score DESC,
+                p.citations DESC NULLS LAST,
+                p.year DESC NULLS LAST,
+                p.id
+            LIMIT :text_limit
+            """),
+            {
+                **params,
+                "text_limit": remaining,
+            },
+        )
+        title_rows = title_result.fetchall()
+
+    remaining = max(0, fetch_limit - len(exact_rows) - len(title_rows))
+    text_rows = []
+    if (
+        remaining > 0
+        and not looks_like_doi
+        and not looks_like_work_id
+        and _specific_search_term_count(query) >= 3
+    ):
+        text_result = await db.execute(
+            text(f"""
+            SELECT
+                p.id, p.title, p.year, p.citations, p.fwci, p.doi, p.open_access,
+                p.type, p.subfield, p.topic, NULL::text AS abstract,
+                10 AS match_rank,
+                ts_rank_cd({PAPER_SEARCH_VECTOR}, websearch_to_tsquery('english', :q)) AS search_score
+            FROM papers p
+            WHERE {PAPER_SEARCH_VECTOR} @@ websearch_to_tsquery('english', :q)
+              AND p.year IS NOT NULL
+              {year_clause}
+            ORDER BY
+                search_score DESC,
+                p.citations DESC NULLS LAST,
+                p.year DESC NULLS LAST,
+                p.id
+            LIMIT :text_limit
+            """),
+            {
+                **params,
+                "text_limit": remaining,
+            },
+        )
+        text_rows = text_result.fetchall()
+
+    seen = set()
+    rows = []
+    for row in [*exact_rows, *title_rows, *text_rows]:
+        if row.id in seen:
+            continue
+        seen.add(row.id)
+        rows.append(row)
+
+    papers = []
+    for row in rows[offset:offset + limit]:
+        item = _paper_item(row, {})
+        item["abstract"] = None
+        item["affiliations"] = []
+        item["quality_flags"] = []
+        item["authors"] = []
+        item["facets"] = []
+        item["search_score"] = float(row.search_score or 0)
+        item["match_rank"] = int(row.match_rank or 10)
+        papers.append(item)
+
+    return {
+        "query": query,
+        "limit": limit,
+        "offset": offset,
+        "papers": papers,
+        **SEARCH_PROVENANCE,
+    }
+
+
 @router.get("/{paper_id}")
 async def get_paper_detail(
     paper_id: str,
@@ -758,6 +1051,7 @@ async def get_paper_detail(
 async def get_paper_references(
     paper_id: str,
     limit: int = Query(30, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
     """Return OpenAlex referenced works, prioritizing references that exist in the local DB."""
@@ -800,8 +1094,9 @@ async def get_paper_references(
                 p.year DESC NULLS LAST,
                 pre.target_openalex_id
             LIMIT :limit
+            OFFSET :offset
             """),
-            {"paper_id": paper_id, "limit": limit},
+            {"paper_id": paper_id, "limit": limit, "offset": offset},
         )
     ).fetchall()
 
@@ -843,6 +1138,8 @@ async def get_paper_references(
         "total_references": int(summary.total_references or 0),
         "internal_references": int(summary.internal_references or 0),
         "external_references": int((summary.total_references or 0) - (summary.internal_references or 0)),
+        "limit": limit,
+        "offset": offset,
         "references": references,
         **QUALITY_PROVENANCE,
     }

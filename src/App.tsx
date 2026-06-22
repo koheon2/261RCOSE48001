@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
+import { HomePage }       from "./pages/HomePage";
 import { GlobePage }      from "./pages/GlobePage";
 import { BenchmarkPage }  from "./pages/BenchmarkPage";
 import { ResearchMap }    from "./pages/ResearchMap";
@@ -21,17 +22,18 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div style={{ width: "100vw", height: "100vh", background: "#000005", position: "relative" }}>
+      <div style={{ width: "100vw", height: "100vh", background: "#080d14", position: "relative" }}>
 
-        {/* Unified top bar: logo + search + nav tabs + count */}
+        {/* Unified top bar: brand + universal search + core destinations */}
         <TopBar
           onSelect={setSelected}
           visibleCount={visibleCount}
         />
 
         <Routes>
+          <Route path="/" element={<HomePage />} />
           <Route
-            path="/"
+            path="/globe"
             element={
               <GlobePage
                 selected={selected}
@@ -42,7 +44,7 @@ export default function App() {
             }
           />
           <Route path="/universe" element={<Navigate to="/map" replace />} />
-          <Route path="/graph" element={<Navigate to="/" replace />} />
+          <Route path="/graph" element={<Navigate to="/globe" replace />} />
           <Route
             path="/benchmarks"
             element={<BenchmarkPage />}
@@ -69,6 +71,10 @@ export default function App() {
           />
           <Route
             path="/timeline"
+            element={<PaperTimelinePage />}
+          />
+          <Route
+            path="/papers"
             element={<PaperTimelinePage />}
           />
           <Route

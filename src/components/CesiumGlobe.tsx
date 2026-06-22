@@ -312,7 +312,7 @@ export function CesiumGlobe({ selected, related, onSelect, activeField, filterCo
     let destroyed = false;
 
     const initialProvider = new Cesium.UrlTemplateImageryProvider({
-      url: getTileUrl("dark"),
+      url: getTileUrl("light"),
       subdomains: "abcd",
       minimumLevel: 0,
       maximumLevel: 19,
@@ -332,16 +332,16 @@ export function CesiumGlobe({ selected, related, onSelect, activeField, filterCo
       infoBox: false,
       selectionIndicator: false,
       skyBox: false,
-      skyAtmosphere: new Cesium.SkyAtmosphere(),
+      skyAtmosphere: false,
     });
 
     if (destroyed) { viewer.destroy(); return; }
     viewerRef.current = viewer;
 
-    viewer.scene.backgroundColor = Cesium.Color.fromCssColorString("#000005");
+    viewer.scene.backgroundColor = Cesium.Color.fromCssColorString("#f3f6fa");
     viewer.scene.globe.enableLighting = false;
-    viewer.scene.globe.showGroundAtmosphere = true;
-    viewer.scene.globe.atmosphereLightIntensity = 8.0;
+    viewer.scene.globe.showGroundAtmosphere = false;
+    viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#d8e2e7");
 
     viewer.camera.setView({
       destination: Cesium.Cartesian3.fromDegrees(20, 15, 18_000_000),
@@ -533,5 +533,11 @@ export function CesiumGlobe({ selected, related, onSelect, activeField, filterCo
     });
   }, [selected?.id, related.length]);
 
-  return <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />;
+  return (
+    <div
+      ref={containerRef}
+      className="researcher-globe-canvas"
+      style={{ position: "absolute", inset: 0, zIndex: 1 }}
+    />
+  );
 }

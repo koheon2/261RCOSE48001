@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import type { CSSProperties } from "react";
 
 const API_BASE = "http://localhost:8000/api";
-const PIXEL_FONT = "'Press Start 2P', monospace";
-const MONO_FONT  = "'Share Tech Mono', monospace";
+const UI_FONT = '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+const PAGE_SIZE = 20;
 
 interface TrendingTopic {
   rank: number;
@@ -20,23 +21,25 @@ interface TrendingTopic {
 
 type TrendingAxis = "aboutness" | "method" | "task" | "application";
 
-const AXIS_OPTIONS: { key: TrendingAxis; label: string }[] = [
-  { key: "aboutness", label: "FIELDS" },
-  { key: "method", label: "METHODS" },
-  { key: "task", label: "TASKS" },
-  { key: "application", label: "APPS" },
+const AXIS_OPTIONS: { key: TrendingAxis; label: string; helper: string }[] = [
+  { key: "aboutness", label: "Fields", helper: "large research areas" },
+  { key: "method", label: "Methods", helper: "models and techniques" },
+  { key: "task", label: "Tasks", helper: "research problems" },
+  { key: "application", label: "Applications", helper: "deployment domains" },
 ];
 
-function fmtNum(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
-  return n.toString();
+function fmtNum(n: number | undefined): string {
+  const value = n ?? 0;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return Math.round(value).toLocaleString();
 }
 
-function growthColor(pct: number): string {
-  if (pct >= 25) return "#34d399";
-  if (pct >= 15) return "#fbbf24";
-  return "#94a3b8";
+function growthTone(pct: number) {
+  if (pct >= 50) return "#16a34a";
+  if (pct >= 20) return "#2563eb";
+  if (pct >= 0) return "#64748b";
+  return "#dc2626";
 }
 
 export function TrendingPage() {
@@ -45,20 +48,27 @@ export function TrendingPage() {
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(Date.now());
   const [axis, setAxis] = useState<TrendingAxis>("aboutness");
+  const [page, setPage] = useState(0);
   const navigate = useNavigate();
 
   const fetchTrending = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/trending?axis=${axis}&limit=20`);
-      const data = await res.json();
-      setTopics(data);
+      const params = new URLSearchParams({
+        axis,
+        limit: String(PAGE_SIZE + 1),
+        offset: String(page * PAGE_SIZE),
+      });
+      const res = await fetch(`${API_BASE}/trending?${params}`);
+      setTopics(await res.json());
       setLastRefresh(Date.now());
     } catch (e) {
       console.error("Failed to fetch trending:", e);
+      setTopics([]);
     } finally {
       setLoading(false);
     }
-  }, [axis]);
+  }, [axis, page]);
 
   useEffect(() => {
     fetchTrending();
@@ -68,247 +78,260 @@ export function TrendingPage() {
 
   useEffect(() => {
     const axisParam = searchParams.get("axis");
-    if (
-      axisParam === "aboutness" ||
-      axisParam === "method" ||
-      axisParam === "task" ||
-      axisParam === "application"
-    ) {
+    if (axisParam === "aboutness" || axisParam === "method" || axisParam === "task" || axisParam === "application") {
       setAxis(axisParam);
     }
   }, [searchParams]);
 
-  const maxPapers = Math.max(...topics.map(t => t.paper_count), 1);
+  useEffect(() => {
+    setPage(0);
+  }, [axis]);
+
+  const visibleTopics = topics.slice(0, PAGE_SIZE);
+  const hasNext = topics.length > PAGE_SIZE;
+  const maxPapers = Math.max(...visibleTopics.map(t => t.paper_count), 1);
+  const currentAxis = AXIS_OPTIONS.find(option => option.key === axis) ?? AXIS_OPTIONS[0];
 
   return (
-    <div style={{
-      position: "absolute", top: 52, left: 0, right: 0, bottom: 0,
-      background: "#06080f",
-      overflowY: "auto",
-      padding: "32px 40px",
-    }}>
-      {/* Header */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 16,
-        marginBottom: 32,
-      }}>
-        <span style={{ fontSize: 28 }}>🔥</span>
-        <h1 style={{
-          fontFamily: PIXEL_FONT, fontSize: 16,
-          color: "#f8fafc", margin: 0,
-          letterSpacing: "0.04em",
-        }}>
-          TRENDING NOW
-        </h1>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 6,
-          padding: "4px 10px",
-          border: "1px solid #ef444466",
-          background: "#ef444410",
-        }}>
-          <div style={{
-            width: 6, height: 6, borderRadius: "50%",
-            background: "#ef4444",
-            animation: "livePulse 1.5s ease-in-out infinite",
-          }} />
-          <span style={{
-            fontFamily: PIXEL_FONT, fontSize: 7,
-            color: "#ef4444", letterSpacing: "0.08em",
-          }}>LIVE</span>
-        </div>
-        <span style={{
-          fontFamily: MONO_FONT, fontSize: 11,
-          color: "#334155", marginLeft: "auto",
-        }}>
-          Refreshes every 30s
-        </span>
-      </div>
-
-      <div style={{
-        display: "flex",
-        gap: 4,
-        marginBottom: 20,
-        borderBottom: "1px solid #1e293b",
-      }}>
-        {AXIS_OPTIONS.map(option => (
-          <button
-            key={option.key}
-            onClick={() => {
-              setLoading(true);
-              setAxis(option.key);
-            }}
-            style={{
-              background: axis === option.key ? "#00d4ff14" : "transparent",
-              border: "none",
-              borderBottom: axis === option.key ? "2px solid #00d4ff" : "2px solid transparent",
-              color: axis === option.key ? "#00d4ff" : "#475569",
-              fontFamily: PIXEL_FONT,
-              fontSize: 7,
-              padding: "8px 12px",
-              cursor: "pointer",
-            }}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Column headers */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "50px 32px 1fr 120px 140px 200px",
-        gap: 12,
-        padding: "8px 16px",
-        borderBottom: "1px solid #1e293b",
-        marginBottom: 4,
-      }}>
-        <span style={headerStyle}>RANK</span>
-        <span />
-        <span style={headerStyle}>TOPIC</span>
-        <span style={{ ...headerStyle, textAlign: "right" }}>PAPERS</span>
-        <span style={{ ...headerStyle, textAlign: "right" }}>CITATIONS</span>
-        <span style={headerStyle}>GROWTH</span>
-      </div>
-
-      {/* Loading */}
-      {loading && (
-        <div style={{
-          fontFamily: MONO_FONT, fontSize: 14,
-          color: "#475569", padding: "40px 16px",
-          textAlign: "center",
-        }}>
-          Loading trending topics...
-        </div>
-      )}
-
-      {/* Rows */}
-      {topics.map((t) => {
-        const barWidth = (t.paper_count / maxPapers) * 100;
-        const gc = growthColor(t.growth_pct);
-
-        return (
-          <div
-            key={t.topic_id}
-            onClick={() => navigate(`/map?q=${encodeURIComponent(t.topic_name)}`)}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "50px 32px 1fr 120px 140px 200px",
-              gap: 12,
-              padding: "12px 16px",
-              borderBottom: "1px solid #0d1421",
-              cursor: "pointer",
-              transition: "background 0.1s",
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = "#0a0f1a"}
-            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-          >
-            {/* Rank */}
-            <div style={{
-              fontFamily: PIXEL_FONT,
-              fontSize: t.rank <= 3 ? 14 : 10,
-              color: t.rank === 1 ? "#fbbf24" : t.rank === 2 ? "#94a3b8" : t.rank === 3 ? "#d97706" : "#475569",
-              display: "flex", alignItems: "center",
-              textShadow: t.rank <= 3 ? `0 0 8px ${t.rank === 1 ? "#fbbf2444" : "transparent"}` : "none",
-            }}>
-              #{t.rank}
-            </div>
-
-            {/* Emoji */}
-            <div style={{ display: "flex", alignItems: "center", fontSize: 18 }}>
-              {t.emoji}
-            </div>
-
-            {/* Topic name + axis */}
-            <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 4 }}>
-              <span style={{
-                fontFamily: MONO_FONT, fontSize: 14, color: "#e2e8f0",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>
-                {t.topic_name}
-              </span>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{
-                  flex: 1, height: 3, background: "#0f172a", maxWidth: 160,
-                }}>
-                  <div style={{
-                    height: "100%",
-                    width: `${barWidth}%`,
-                    background: `linear-gradient(90deg, #00d4ff44, #00d4ff)`,
-                    transition: "width 0.5s ease",
-                  }} />
-                </div>
-                <span style={{
-                  fontFamily: PIXEL_FONT, fontSize: 6, color: "#334155",
-                }}>
-                  {t.dominant_axis}
-                </span>
-              </div>
-            </div>
-
-            {/* Paper count */}
-            <div style={{
-              fontFamily: MONO_FONT, fontSize: 14, color: "#00d4ff",
-              display: "flex", alignItems: "center", justifyContent: "flex-end",
-            }}>
-              {fmtNum(t.paper_count)}
-            </div>
-
-            {/* Citations */}
-            <div style={{
-              fontFamily: MONO_FONT, fontSize: 14, color: "#a78bfa",
-              display: "flex", alignItems: "center", justifyContent: "flex-end",
-            }}>
-              {fmtNum(t.total_citations)}
-            </div>
-
-            {/* Growth */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 8,
-            }}>
-              <div style={{
-                flex: 1, height: 8, background: "#0f172a",
-                position: "relative", overflow: "hidden",
-              }}>
-                <div style={{
-                  position: "absolute", left: 0, top: 0, bottom: 0,
-                  width: `${Math.min(100, t.growth_pct * 2.5)}%`,
-                  background: `linear-gradient(90deg, ${gc}44, ${gc})`,
-                  transition: "width 0.5s ease",
-                }} />
-              </div>
-              <span style={{
-                fontFamily: MONO_FONT, fontSize: 12, color: gc,
-                minWidth: 50, textAlign: "right",
-              }}>
-                +{t.growth_pct}%
-              </span>
-            </div>
+    <main style={pageStyle}>
+      <section style={shellStyle}>
+        <div style={heroStyle}>
+          <div>
+            <div style={eyebrowStyle}>Recent paper growth</div>
+            <h1 style={titleStyle}>Trending Research</h1>
+            <p style={subtitleStyle}>
+              Growth is calculated from quality-filtered paper facets, not random UI estimates.
+            </p>
           </div>
-        );
-      })}
+          <div style={refreshStyle}>
+            <span>Last updated</span>
+            <strong>{new Date(lastRefresh).toLocaleTimeString()}</strong>
+          </div>
+        </div>
 
-      {/* Refresh indicator */}
-      <div style={{
-        fontFamily: MONO_FONT, fontSize: 10,
-        color: "#1e293b", textAlign: "center",
-        padding: "20px 0",
-      }}>
-        Last updated: {new Date(lastRefresh).toLocaleTimeString()}
+        <div style={axisGridStyle}>
+          {AXIS_OPTIONS.map(option => (
+            <button
+              key={option.key}
+              onClick={() => setAxis(option.key)}
+              style={axis === option.key ? axisButtonActiveStyle : axisButtonStyle}
+            >
+              <strong>{option.label}</strong>
+              <span>{option.helper}</span>
+            </button>
+          ))}
+        </div>
+
+        <section style={contentCardStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <h2 style={sectionTitleStyle}>{currentAxis.label}</h2>
+              <p style={sectionSubtitleStyle}>Top facets by recent growth and paper volume.</p>
+            </div>
+            <span style={countPillStyle}>
+              ranks {visibleTopics.length ? `${page * PAGE_SIZE + 1}-${page * PAGE_SIZE + visibleTopics.length}` : "0"}
+            </span>
+          </div>
+
+          <div style={tableHeaderStyle}>
+            <span>Rank</span>
+            <span>Topic</span>
+            <span>Papers</span>
+            <span>Citations</span>
+            <span>Growth</span>
+          </div>
+
+          {loading && <div style={emptyStyle}>Loading trending topics...</div>}
+          {!loading && visibleTopics.length === 0 && <div style={emptyStyle}>No trending rows for this axis.</div>}
+
+          {!loading && visibleTopics.map(topic => {
+            const paperPct = Math.min(100, (topic.paper_count / maxPapers) * 100);
+            const tone = growthTone(topic.growth_pct);
+            return (
+              <button
+                key={topic.topic_id}
+                onClick={() => navigate(`/papers?topic=${encodeURIComponent(topic.topic_name)}`)}
+                style={rowStyle}
+              >
+                <span style={rankStyle}>#{topic.rank}</span>
+                <span style={topicCellStyle}>
+                  <span style={emojiStyle}>{topic.emoji}</span>
+                  <span>
+                    <strong>{topic.topic_name}</strong>
+                    <small>{topic.dominant_axis}</small>
+                  </span>
+                </span>
+                <span style={metricCellStyle}>
+                  <strong>{fmtNum(topic.paper_count)}</strong>
+                  <span style={barTrackStyle}><span style={{ ...barStyle, width: `${paperPct}%` }} /></span>
+                </span>
+                <span style={numberCellStyle}>{fmtNum(topic.total_citations)}</span>
+                <span style={growthCellStyle}>
+                  <span style={{ ...growthPillStyle, color: tone, background: `${tone}12` }}>
+                    {topic.growth_pct >= 0 ? "+" : ""}{topic.growth_pct}%
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </section>
+
+        <PaginationBar
+          page={page}
+          pageSize={PAGE_SIZE}
+          shown={visibleTopics.length}
+          hasNext={hasNext}
+          loading={loading}
+          onPrev={() => setPage(prev => Math.max(0, prev - 1))}
+          onNext={() => setPage(prev => prev + 1)}
+        />
+      </section>
+    </main>
+  );
+}
+
+function PaginationBar({
+  page,
+  pageSize,
+  shown,
+  hasNext,
+  loading,
+  onPrev,
+  onNext,
+}: {
+  page: number;
+  pageSize: number;
+  shown: number;
+  hasNext: boolean;
+  loading: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div style={paginationStyle}>
+      <span style={paginationTextStyle}>
+        Showing ranks {shown > 0 ? `${page * pageSize + 1}-${page * pageSize + shown}` : "0"}
+      </span>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onPrev} disabled={page === 0 || loading} style={page === 0 || loading ? disabledPageButtonStyle : pageButtonStyle}>
+          Previous
+        </button>
+        <button onClick={onNext} disabled={!hasNext || loading} style={!hasNext || loading ? disabledPageButtonStyle : pageButtonStyle}>
+          Next
+        </button>
       </div>
-
-      <style>{`
-        @keyframes livePulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-      `}</style>
     </div>
   );
 }
 
-const headerStyle: React.CSSProperties = {
-  fontFamily: "'Press Start 2P', monospace",
-  fontSize: 6,
-  color: "#334155",
-  letterSpacing: "0.08em",
+const pageStyle: CSSProperties = {
+  position: "absolute",
+  top: 52,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  overflowY: "auto",
+  background: "#f8fafc",
+  color: "#0f172a",
+  fontFamily: UI_FONT,
+  padding: "32px 24px 48px",
+};
+const shellStyle: CSSProperties = { maxWidth: 1180, margin: "0 auto" };
+const heroStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 24, marginBottom: 24 };
+const eyebrowStyle: CSSProperties = { color: "#2563eb", fontSize: 13, fontWeight: 760, textTransform: "uppercase" };
+const titleStyle: CSSProperties = { fontSize: 38, lineHeight: 1.05, margin: "8px 0 10px", letterSpacing: 0 };
+const subtitleStyle: CSSProperties = { color: "#64748b", fontSize: 16, margin: 0 };
+const refreshStyle: CSSProperties = {
+  alignSelf: "flex-start",
+  border: "1px solid #dbe3ee",
+  background: "#fff",
+  borderRadius: 14,
+  padding: 16,
+  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.06)",
+  display: "grid",
+  gap: 4,
+  minWidth: 150,
+};
+const axisGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 18 };
+const axisButtonStyle: CSSProperties = {
+  display: "grid",
+  gap: 5,
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "#dbe3ee",
+  borderRadius: 16,
+  background: "#fff",
+  color: "#0f172a",
+  cursor: "pointer",
+  fontFamily: UI_FONT,
+  padding: 16,
+  textAlign: "left",
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.04)",
+};
+const axisButtonActiveStyle: CSSProperties = { ...axisButtonStyle, borderColor: "#2563eb", boxShadow: "0 14px 34px rgba(37, 99, 235, 0.13)" };
+const contentCardStyle: CSSProperties = { border: "1px solid #dbe3ee", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 14px 36px rgba(15, 23, 42, 0.06)" };
+const sectionHeaderStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 18, padding: "18px 20px", borderBottom: "1px solid #eef2f7" };
+const sectionTitleStyle: CSSProperties = { fontSize: 20, margin: 0 };
+const sectionSubtitleStyle: CSSProperties = { color: "#64748b", fontSize: 13, margin: "4px 0 0" };
+const countPillStyle: CSSProperties = { alignSelf: "center", border: "1px solid #dbe3ee", borderRadius: 999, color: "#64748b", fontSize: 13, fontWeight: 760, padding: "7px 10px" };
+const tableHeaderStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "78px minmax(260px, 1.5fr) 180px 140px 130px",
+  gap: 14,
+  padding: "12px 20px",
+  background: "#f8fafc",
+  borderBottom: "1px solid #e2e8f0",
+  color: "#64748b",
+  fontSize: 12,
+  fontWeight: 800,
+  textTransform: "uppercase",
+};
+const rowStyle: CSSProperties = {
+  width: "100%",
+  display: "grid",
+  gridTemplateColumns: "78px minmax(260px, 1.5fr) 180px 140px 130px",
+  gap: 14,
+  alignItems: "center",
+  border: "none",
+  borderBottom: "1px solid #eef2f7",
+  background: "#fff",
+  cursor: "pointer",
+  fontFamily: UI_FONT,
+  padding: "14px 20px",
+  textAlign: "left",
+};
+const rankStyle: CSSProperties = { color: "#2563eb", fontSize: 15, fontWeight: 850 };
+const topicCellStyle: CSSProperties = { display: "grid", gridTemplateColumns: "34px 1fr", gap: 10, alignItems: "center", minWidth: 0 };
+const emojiStyle: CSSProperties = { width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 10, background: "#f1f5f9", fontSize: 18 };
+const metricCellStyle: CSSProperties = { display: "grid", gap: 6, color: "#0f172a", fontSize: 14 };
+const numberCellStyle: CSSProperties = { color: "#475569", fontSize: 14, fontWeight: 740 };
+const growthCellStyle: CSSProperties = { display: "flex", justifyContent: "flex-start" };
+const growthPillStyle: CSSProperties = { borderRadius: 999, fontSize: 13, fontWeight: 820, padding: "6px 9px" };
+const barTrackStyle: CSSProperties = { height: 7, borderRadius: 999, background: "#eef2f7", overflow: "hidden" };
+const barStyle: CSSProperties = { display: "block", height: "100%", background: "#2563eb", borderRadius: 999 };
+const emptyStyle: CSSProperties = { padding: 42, textAlign: "center", color: "#64748b", fontSize: 15 };
+const paginationStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  marginTop: 14,
+};
+const paginationTextStyle: CSSProperties = { color: "#64748b", fontSize: 13, fontWeight: 700 };
+const pageButtonStyle: CSSProperties = {
+  background: "#fff",
+  border: "1px solid #cbd5e1",
+  borderRadius: 10,
+  color: "#0f172a",
+  cursor: "pointer",
+  fontFamily: UI_FONT,
+  fontSize: 14,
+  fontWeight: 760,
+  padding: "9px 13px",
+};
+const disabledPageButtonStyle: CSSProperties = {
+  ...pageButtonStyle,
+  color: "#94a3b8",
+  cursor: "not-allowed",
+  opacity: 0.6,
 };
