@@ -108,36 +108,19 @@ async def _country_topic_progress(db: AsyncSession, entity: str, years: int, top
     axis_filter = matched_axes or ["aboutness", "method", "task", "application"]
     result = await db.execute(
         text("""
-        WITH country_affiliations AS MATERIALIZED (
-            SELECT paper_id, publication_year
-            FROM paper_author_affiliations
-            WHERE country_code = :entity
-              AND publication_year IS NOT NULL
-              AND publication_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - :years + 1
-              AND publication_year <= EXTRACT(YEAR FROM CURRENT_DATE)::int
-        ),
-        matched_papers AS MATERIALIZED (
-            SELECT DISTINCT paper_id
-            FROM paper_facets
-            WHERE facet_value = :facet_value
-              AND facet_type = ANY(:axes)
-        )
         SELECT
-            ca.publication_year AS year,
-            COUNT(*)::bigint AS contributions,
-            COUNT(DISTINCT ca.paper_id)::bigint AS papers,
-            COALESCE(SUM(p.citations), 0)::bigint AS total_citations
-        FROM country_affiliations ca
-        JOIN matched_papers mp ON mp.paper_id = ca.paper_id
-        JOIN papers p ON p.id = ca.paper_id
-        WHERE NOT EXISTS (
-            SELECT 1
-            FROM paper_quality_flags pqf
-            WHERE pqf.paper_id = ca.paper_id
-              AND pqf.severity = 'exclude'
-        )
-        GROUP BY ca.publication_year
-        ORDER BY ca.publication_year
+            year,
+            SUM(contributions)::bigint AS contributions,
+            SUM(papers)::bigint AS papers,
+            COALESCE(SUM(total_citations), 0)::bigint AS total_citations
+        FROM publication_author_facet_year_stats
+        WHERE country_code = :entity
+          AND facet_value = :facet_value
+          AND facet_type = ANY(:axes)
+          AND year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - :years + 1
+          AND year <= EXTRACT(YEAR FROM CURRENT_DATE)::int
+        GROUP BY year
+        ORDER BY year
         """),
         {
             "entity": entity,
